@@ -12,7 +12,7 @@ interface CommunityUser {
   tier: string;
 }
 
-// ✨ 1. 戰力計算公式 (與主頁面保持一致)
+// 戰力公式 (保持一致)
 function calculatePower(tx: number, days: number): number {
   const score = (days * 10) + tx;
   return Math.min(9999, score);
@@ -58,9 +58,11 @@ export function SocialFeed() {
   useEffect(() => {
     async function fetchFeed() {
       try {
-        const res = await fetch("/api/community");
+        // 防止快取：加上時間戳參數
+        const res = await fetch(`/api/community?t=${Date.now()}`);
         if (res.ok) {
           const data = await res.json();
+          // ⚠️ 關鍵修改：只使用真實數據，不再使用 MOCK_DATA
           setUsers(Array.isArray(data) ? data : []);
         }
       } catch (e) {
@@ -76,10 +78,13 @@ export function SocialFeed() {
     return <div className="text-center py-20 text-xs text-slate-500 animate-pulse tracking-widest uppercase">Fetching Signals...</div>;
   }
 
+  // 如果沒有真實數據，顯示等待畫面
   if (users.length === 0) {
     return (
-      <div className="text-center py-20 text-slate-500 text-sm">
-        <p>No signals yet. Be the first to mint your card!</p>
+      <div className="w-full flex flex-col items-center justify-center py-24 border border-white/5 rounded-3xl bg-white/5">
+        <div className="text-4xl opacity-50 mb-4">📡</div>
+        <p className="text-slate-400 font-bold mb-1">No signals detected yet</p>
+        <p className="text-xs text-slate-500">Be the first to mint your legacy card!</p>
       </div>
     );
   }
@@ -89,7 +94,7 @@ export function SocialFeed() {
       <div className="flex flex-col items-start mb-8 space-y-2 border-l-2 border-blue-500 pl-4">
         <h2 className="text-2xl font-bold text-white tracking-tight">The Signal Wall</h2>
         <p className="text-sm text-slate-400">
-            Join <span className="text-blue-400 font-bold">{users.length * 12 + 1000}+</span> active players.
+            Join <span className="text-blue-400 font-bold">{users.length}</span> active players on the leaderboard.
         </p>
       </div>
 
@@ -98,8 +103,6 @@ export function SocialFeed() {
           const info = getTierInfo(user.tier, user.tx, user.days);
           const displayName = user.handle ? `@${user.handle}` : `${user.address.slice(0, 4)}...${user.address.slice(-4)}`;
           const avatar = user.pfp || "/bucket-default-pfp.png";
-          
-          // ✨ 2. 計算每張卡片的 AP 分數
           const apScore = calculatePower(user.tx, user.days);
 
           const linkUrl = user.handle 
@@ -122,15 +125,13 @@ export function SocialFeed() {
 
                 <div className="relative h-full flex flex-col p-4 z-10 justify-between">
                     
-                    {/* Top Header */}
                     <div className="flex justify-between items-center pb-2 border-b border-white/5">
                         <div className="flex items-center gap-1 opacity-90">
                             <img src="/bucket-default-pfp.png" className="w-3.5 h-3.5" alt="Logo" />
-                            {/* Brand Update: Title Case */}
                             <span className="text-[10px] font-bold tracking-tight text-white font-sans">Bucket</span>
                         </div>
                         
-                        {/* ✨ AP Badge (Small Version) */}
+                        {/* AP Badge */}
                         <div className="px-1.5 py-0.5 rounded border border-cyan-500/20 bg-cyan-900/10 flex items-center gap-1 shadow-[0_0_5px_rgba(34,211,238,0.15)]">
                             <span className="text-[6px] text-cyan-400 uppercase tracking-wider font-bold">AP</span>
                             <span className="text-[8px] font-mono font-bold text-cyan-100">{apScore}</span>
@@ -141,7 +142,6 @@ export function SocialFeed() {
                         <div className="relative">
                             <div className="absolute inset-0 bg-white/5 blur-lg rounded-full" />
                             <div className={`relative w-20 h-20 rounded-full p-0.5 bg-gradient-to-b ${info.bgGradient} border border-white/10 overflow-hidden`}>
-                                {/* 加入 bucket-filter 與覆蓋層，保持視覺一致 */}
                                 <img src={avatar} className="w-full h-full rounded-full object-cover bg-black bucket-filter" alt="Avatar" />
                                 <div className="absolute inset-0 bg-blue-500/10 rounded-full pointer-events-none"></div>
                             </div>
