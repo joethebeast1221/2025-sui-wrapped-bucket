@@ -1,7 +1,7 @@
 import { SuiClient } from "@mysten/sui.js/client";
 import { SuiYearlySummary, ActivityTimelinePoint } from "./types";
 
-const SUI_RPC_URL = process.env.SUI_RPC_URL || "https://fullnode.mainnet.sui.io:443";
+const SUI_RPC_URL = process.env.SUI_RPC_URL || "https://api.us1.shinami.com/sui/node/v1/us1_sui_mainnet_06c80a7299974a0d934f61caa6efb31e";
 
 function normalizeSuiAddress(address: string): string | null {
   const trimmed = address.trim().toLowerCase();
