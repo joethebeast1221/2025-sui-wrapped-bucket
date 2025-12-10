@@ -1,271 +1,225 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useState, useEffect, useRef, MouseEvent } from "react";
+import { signIn, useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useSession, signIn, signOut } from "next-auth/react";
-import { SeasonCountdown } from "@/components/SeasonCountdown";
 
-export default function HomePage() {
-  const router = useRouter();
-  const { data: session, status } = useSession();
+// 🕒 設定活動結束時間
+const SEASON_END_DATE = new Date("2026-01-07T23:59:59");
 
-  const anySession = session as any | null;
-  const twitterHandle = anySession?.twitterHandle as string | undefined;
-  const twitterPfpUrl = anySession?.twitterPfpUrl as string | undefined;
+// 預覽用的 3D 卡片組件
+function MockTiltCard() {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [rotate, setRotate] = useState({ x: 0, y: 0 });
 
-  const [address, setAddress] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    const trimmed = address.trim();
-    if (!trimmed) return;
-
-    setIsLoading(true);
-    const year = 2025;
-    router.push(`/wrapped/${trimmed}?year=${year}`);
+  const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const rotateX = ((y - centerY) / centerY) * -10; 
+    const rotateY = ((x - centerX) / centerX) * 10;
+    setRotate({ x: rotateX, y: rotateY });
   };
 
-  const avatarUrl = twitterPfpUrl || "/bucket-default-pfp.png";
-  const displayName = twitterHandle ? `@${twitterHandle}` : "Your handle";
+  const handleMouseLeave = () => {
+    setRotate({ x: 0, y: 0 });
+  };
 
   return (
-    <main className="relative min-h-screen bg-black overflow-hidden text-white">
-      {/* Background glows */}
-      <div className="absolute inset-0 bg-black" />
-      <div className="pointer-events-none absolute -top-72 right-[-8rem] w-[60vw] h-[60vw] bg-[radial-gradient(circle_at_0%_0%,rgba(37,99,235,0.85),transparent_65%)] blur-[140px]" />
-      <div className="pointer-events-none absolute bottom-[-22rem] left-[-12rem] w-[55vw] h-[55vw] bg-[radial-gradient(circle_at_100%_100%,rgba(15,23,42,0.95),transparent_60%)] blur-[150px]" />
-
-      <div className="relative z-10 max-w-6xl mx-auto px-6 py-8 md:py-10 min-h-screen flex flex-col justify-center">
-        {/* Top bar */}
-        <header className="flex items-center justify-between gap-4 mb-8 md:mb-10">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="absolute inset-0 rounded-full bg-white/15 blur-lg" />
-              <img
-                src="/bucket-default-pfp.png"
-                alt="Bucket logo"
-                className="relative w-8 h-8 rounded-full border border-white/30 shadow-[0_0_32px_rgba(148,163,184,0.9)]"
-              />
-            </div>
-            <div className="flex flex-col leading-tight">
-              <span className="text-xs font-medium tracking-[0.16em] uppercase text-white">
-                Bucket
-              </span>
-              <span className="text-[10px] text-slate-300 tracking-[0.22em] uppercase">
-                Sui 2025 Wrapped
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <SeasonCountdown targetIso="2026-01-15T00:00:00Z" />
-          </div>
-        </header>
-
-        {/* Main layout */}
-        <section className="flex flex-col md:flex-row items-start gap-10">
-          {/* Left: 3-step flow */}
-          <div className="w-full md:w-[54%] space-y-5">
-            {/* Hero copy */}
-            <div className="space-y-3">
-              <p className="text-[11px] tracking-[0.24em] uppercase text-slate-300">
-                Your Sui year, Bucket-branded
-              </p>
-              <h1 className="text-[30px] md:text-[38px] font-light leading-tight">
-                Connect your identity,
-                <br className="hidden md:block" />
-                drop a Sui address,
-                <br className="hidden md:block" />
-                get your Wrapped card.
-              </h1>
-              <p className="text-sm md:text-base text-slate-300 font-light max-w-xl">
-                We turn your 2025 Sui transactions into a shareable, 1:1
-                Bucket-themed recap — tier, active days, and your Twitter avatar
-                woven into the card.
-              </p>
-            </div>
-
-            {/* Step 1 */}
-            <div className="rounded-2xl bg-white/[0.03] border border-white/[0.12] px-4 py-4 space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">
-                    Step 1 · Connect Twitter
-                  </p>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Optional · we only use your handle and avatar to personalize
-                    the card.
-                  </p>
+    <div 
+      className="card-perspective relative group cursor-pointer"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* 背景光暈 */}
+      <div className="absolute inset-0 bg-blue-500/20 blur-[60px] rounded-full" />
+      
+      <div 
+        ref={cardRef}
+        className="card-inner relative w-[280px] h-[420px] rounded-[24px] overflow-hidden bg-[#080c14] border border-white/20 shadow-2xl"
+        style={{
+          transform: `rotateX(${rotate.x}deg) rotateY(${rotate.y}deg)`,
+          backgroundImage: "linear-gradient(160deg, #1e293b 0%, #020408 60%)",
+        }}
+      >
+        <div className="card-glare absolute inset-0 z-20" />
+        
+        {/* Mock Content */}
+        <div className="relative z-10 h-full flex flex-col justify-between p-5">
+            <div className="flex justify-between items-center opacity-70">
+                <div className="flex items-center gap-1.5">
+                    <img src="/bucket-default-pfp.png" className="w-3.5 h-3.5" alt="Logo" />
+                    <span className="text-[9px] font-bold tracking-tight text-white font-sans">Bucket</span>
                 </div>
-                <span className="text-[10px] px-2 py-0.5 rounded-full border border-white/20 text-slate-300">
-                  Optional
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between gap-2">
-                {status === "authenticated" ? (
-                  <>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-300">
-                      <img
-                        src={avatarUrl}
-                        alt="Twitter avatar"
-                        className="w-6 h-6 rounded-full object-cover border border-white/40"
-                      />
-                      <span>
-                        Connected{" "}
-                        {twitterHandle ? `@${twitterHandle}` : "Twitter"}
-                      </span>
+                <div className="px-1.5 py-0.5 border border-white/10 rounded text-[7px] text-white/50">2025</div>
+            </div>
+            
+            <div className="flex-1 flex flex-col items-center justify-center gap-3">
+                <div className="relative w-28 h-28 rounded-full p-1 bg-gradient-to-b from-blue-400 to-purple-600 border-2 border-white/20">
+                    <img src="/bucket-default-pfp.png" className="w-full h-full rounded-full bg-black object-cover bucket-filter" alt="Mock" />
+                </div>
+                <div className="text-center">
+                    <h3 className="text-xl font-bold text-white">Your Name</h3>
+                    <div className="inline-block bg-[#050a12] border border-white/20 px-2 py-0.5 rounded-full text-[7px] font-bold uppercase tracking-[0.2em] text-blue-300 mt-2">
+                        CURRENT
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => signOut()}
-                      className="text-[11px] text-slate-400 underline underline-offset-4 hover:text-slate-100"
-                    >
-                      Disconnect
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-[11px] text-slate-400">
-                      Connect to let Wrapped use your X avatar on the card.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => signIn("twitter")}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-white text-black px-3 py-1.5 text-[11px] font-medium shadow-[0_0_28px_rgba(248,250,252,0.8)] hover:shadow-[0_0_40px_rgba(248,250,252,1)] hover:-translate-y-0.5 transition"
-                    >
-                      <span className="inline-block w-3 h-3 rounded-[4px] bg-black" />
-                      <span>Connect X (Twitter)</span>
-                    </button>
-                  </>
-                )}
-              </div>
+                </div>
             </div>
 
-            {/* Step 2 */}
-            <div className="rounded-2xl bg-white/[0.04] border border-white/[0.18] px-4 py-4 space-y-3">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-slate-300">
-                Step 2 · Insert Sui address
-              </p>
-              <p className="text-xs text-slate-400">
-                We&apos;ll pull every transaction this address broadcast on Sui
-                in 2025 and turn it into your yearly recap.
-              </p>
+            <div className="grid grid-cols-2 divide-x divide-white/10 border-t border-white/10 pt-3 bg-black/20 rounded-b-xl">
+                <div className="text-center">
+                    <div className="text-lg font-mono text-white">888</div>
+                    <div className="text-[6px] text-slate-500 uppercase tracking-widest">TXs</div>
+                </div>
+                <div className="text-center">
+                    <div className="text-lg font-mono text-white">365</div>
+                    <div className="text-[6px] text-slate-500 uppercase tracking-widest">Days</div>
+                </div>
+            </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-              <form
-                onSubmit={handleSubmit}
-                className="mt-2 space-y-3 max-w-xl"
-              >
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <input
-                    type="text"
-                    placeholder="0x... or your Sui address"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    className="flex-1 rounded-2xl bg-black/40 border border-white/20 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none focus:border-white/50 focus:bg-black/30 transition"
-                    required
-                  />
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="sm:w-44 rounded-2xl bg-white text-black text-sm font-medium px-4 py-2.5 shadow-[0_0_40px_rgba(248,250,252,0.7)] hover:shadow-[0_0_52px_rgba(248,250,252,0.9)] hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none transition"
-                  >
-                    {isLoading
-                      ? "Stitching your year..."
-                      : "Generate my Sui card"}
-                  </button>
+function CountdownTimer() {
+  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0 });
+
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      const difference = SEASON_END_DATE.getTime() - new Date().getTime();
+      if (difference > 0) {
+        return {
+          days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+          hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+          minutes: Math.floor((difference / 1000 / 60) % 60),
+        };
+      }
+      return { days: 0, hours: 0, minutes: 0 };
+    };
+
+    setTimeLeft(calculateTimeLeft());
+    const timer = setInterval(() => {
+      setTimeLeft(calculateTimeLeft());
+    }, 60000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="flex items-center gap-3 text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-500/30 px-4 py-2 rounded-full animate-pulse">
+      <span className="uppercase tracking-widest text-slate-400">Season Ends:</span>
+      <span className="font-bold text-white">
+        {timeLeft.days}d {timeLeft.hours}h {timeLeft.minutes}m
+      </span>
+    </div>
+  );
+}
+
+export default function Home() {
+  const [address, setAddress] = useState("");
+  const router = useRouter();
+  const { data: session } = useSession();
+  const user = session as any;
+
+  const handleCheck = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!address) return;
+    router.push(`/wrapped/${address}?year=2025`);
+  };
+
+  return (
+    <main className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden bg-[#020408]">
+      
+      {/* ✨ 新增：右上角的 Open Bucket App 按鈕 */}
+      <a
+        href="https://www.bucketprotocol.io/earn"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="absolute top-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 rounded-full text-xs font-bold text-white transition-all hover:scale-105 backdrop-blur-sm group"
+      >
+        <span>Open Bucket App</span>
+        <svg className="w-3 h-3 text-slate-400 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+        </svg>
+      </a>
+
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-blue-600/10 blur-[120px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-cyan-600/10 blur-[120px] rounded-full" />
+      </div>
+
+      <div className="relative z-10 w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        
+        {/* Left: Content & Inputs */}
+        <div className="flex flex-col items-center lg:items-start text-center lg:text-left gap-8 order-2 lg:order-1">
+            <div className="space-y-4">
+                <div className="flex items-center justify-center lg:justify-start gap-3 opacity-90">
+                    <img src="/bucket-default-pfp.png" className="w-8 h-8" alt="Bucket Logo" />
+                    <span className="text-2xl font-bold tracking-tight text-white font-sans">Bucket</span>
+                </div>
+                <h1 className="text-4xl md:text-6xl font-bold tracking-tighter text-white leading-tight">
+                    2025 <br/> <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">Wrapped</span>
+                </h1>
+                <p className="text-slate-400 text-lg max-w-md">
+                    Visualize your 2025 Sui journey. <br/>Generate your legacy card now.
+                </p>
+                <div className="flex justify-center lg:justify-start">
+                    <CountdownTimer />
+                </div>
+            </div>
+
+            <div className="w-full max-w-md grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="h-12">
+                    {!user ? (
+                        <button
+                            onClick={() => signIn("twitter")}
+                            className="w-full h-full flex items-center justify-center gap-3 bg-[#0f1419] hover:bg-[#1a202c] border border-white/10 hover:border-white/30 rounded-xl transition-all"
+                        >
+                            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg>
+                            <span className="font-bold text-white text-sm">Connect X</span>
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => signOut()}
+                            className="w-full h-full flex items-center justify-center gap-2 bg-blue-500/10 border border-blue-500/30 rounded-xl px-3"
+                        >
+                            <img 
+                                src={user.twitterPfpUrl?.replace('_normal', '') || "/bucket-default-pfp.png"} 
+                                className="w-5 h-5 rounded-full border border-white/20" 
+                            />
+                            <span className="font-bold text-blue-200 truncate text-sm">@{user.twitterHandle}</span>
+                        </button>
+                    )}
                 </div>
 
-                <p className="text-[11px] text-slate-500">
-                  No signing, no private keys. Everything comes from public Sui
-                  transaction history.
-                </p>
-              </form>
-            </div>
-
-            {/* Step 3 */}
-            <div className="rounded-2xl bg-white/[0.02] border border-white/[0.12] px-4 py-4 space-y-2">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-slate-300">
-                Step 3 · Get your Wrapped card
-              </p>
-              <p className="text-xs text-slate-400">
-                After you submit, we&apos;ll take you to the Wrapped page where
-                you&apos;ll see your tier, activity overview, and a Bucket-style
-                1:1 share card you can download or post on X / Telegram.
-              </p>
-            </div>
-          </div>
-
-          {/* Right: Preview card (uses Twitter avatar if connected) */}
-          <div className="w-full md:w-[46%] flex justify-center md:justify-end">
-            <div
-              style={{ aspectRatio: "1 / 1" }}
-              className="w-full max-w-sm bg-black border border-white/[0.16] rounded-[32px] p-8 text-center shadow-[0_0_90px_-20px_rgba(15,23,42,0.9)] bg-[radial-gradient(circle_at_50%_0%,rgba(37,99,235,0.45),transparent_65%)] flex flex-col items-center justify-center"
-            >
-              {/* PFP + Bucket frame */}
-              <div className="relative mb-5">
-                <div className="absolute inset-0 blur-xl bg-[rgba(148,163,184,0.7)] rounded-full" />
-                <div className="relative rounded-full p-[3px] bg-black border border-white/30 shadow-[0_0_50px_rgba(148,163,184,1)]">
-                  <img
-                    src={avatarUrl}
-                    alt="Preview avatar"
-                    className="w-[72px] h-[72px] rounded-full object-cover"
-                  />
-                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-black border border-white/40 flex items-center justify-center">
-                    <img
-                      src="/bucket-default-pfp.png"
-                      alt="Bucket mini"
-                      className="w-4 h-4 rounded-full"
+                <form onSubmit={handleCheck} className="h-12 flex gap-2">
+                    <input
+                        type="text"
+                        placeholder="Sui Address..."
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 transition font-mono text-sm"
                     />
-                  </div>
-                </div>
-              </div>
-
-              <p className="text-[11px] tracking-[0.26em] uppercase text-slate-400">
-                Preview · Sui 2025 Wrapped
-              </p>
-
-              <h3 className="mt-2 text-xl font-light text-white">
-                {displayName}
-              </h3>
-
-              <div className="mt-3 text-[11px] text-slate-200 uppercase tracking-[0.18em]">
-                CURRENT NATIVE
-              </div>
-
-              <p className="mt-3 text-[11px] text-slate-300 px-4">
-                You moved with Sui&apos;s currents — protocols, mints, swaps,
-                loops. On-chain is where you actually live.
-              </p>
-
-              <div className="mt-4 space-y-1 text-slate-300 text-sm font-light">
-                <p>256 Sui transactions in 2025</p>
-                <p>68 active days on Sui</p>
-              </div>
-
-              <div className="mt-4 flex flex-wrap justify-center gap-2 text-[11px]">
-                <span className="px-3 py-1 rounded-full bg-white/[0.05] border border-white/[0.18] text-slate-100">
-                  Long-term farmer
-                </span>
-                <span className="px-3 py-1 rounded-full bg-white/[0.05] border border-white/[0.18] text-slate-100">
-                  Stable stacker
-                </span>
-              </div>
-
-              <div className="mt-8 flex flex-col items-center gap-2">
-                <img
-                  src="/bucket-default-pfp.png"
-                  alt="Bucket logo"
-                  className="w-7 h-7 rounded-full opacity-90"
-                />
-                <p className="text-[10px] text-slate-500 font-light">
-                  Wrapped experience by Bucket · Built on Sui
-                </p>
-              </div>
+                    <button
+                        type="submit"
+                        disabled={!address}
+                        className="px-5 bg-white text-black font-bold rounded-xl hover:scale-105 active:scale-95 transition disabled:opacity-50 text-sm"
+                    >
+                        GO
+                    </button>
+                </form>
             </div>
-          </div>
-        </section>
+        </div>
+
+        {/* Right: Card Preview (Floating) */}
+        <div className="flex justify-center items-center order-1 lg:order-2 animate-float">
+            <MockTiltCard />
+        </div>
+
       </div>
     </main>
   );

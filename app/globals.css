@@ -1,26 +1,81 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #020408;
+  --foreground: #ededed;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-tt), sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 3D Card Styles */
+.card-perspective {
+  perspective: 1000px;
+}
+
+.card-inner {
+  transition: transform 0.1s ease-out;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.card-glare {
+  background: radial-gradient(
+    farthest-corner circle at var(--mx) var(--my),
+    rgba(255, 255, 255, 0.4) 0%,
+    rgba(255, 255, 255, 0) 80%
+  );
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+
+/* ✨ Bucket 品牌濾鏡 (統一版) */
+/* 調整了 hue-rotate 和 brightness，讓它單靠 filter 就呈現深藍色調 */
+/* 這樣網頁顯示和 html-to-image 下載就會完全一樣 */
+.bucket-filter {
+  filter: grayscale(100%) sepia(100%) hue-rotate(180deg) saturate(350%) brightness(0.85) contrast(1.2);
+}
+
+/* Hide scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #020408;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+/* ... 原本的 CSS ... */
+
+/* ✨ 新增：懸浮動畫 */
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px); /* 向上浮動 20px */
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite; /* 6秒一個循環，無限播放 */
+}
+
+/* 為了讓預覽卡片和結果卡片的浮動不同步，看起來更自然，我們可以加一個延遲版 */
+.animate-float-delayed {
+  animation: float 6s ease-in-out infinite;
+  animation-delay: 3s; /* 延遲 3 秒開始 */
 }

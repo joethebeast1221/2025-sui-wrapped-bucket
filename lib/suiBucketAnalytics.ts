@@ -1,65 +1,26 @@
-// lib/suiBucketAnalytics.ts
 import { SuiClient } from "@mysten/sui.js/client";
-import { BucketYearlySummary, BucketActivityTimelinePoint } from "./types";
+import { SuiYearlySummary, ActivityTimelinePoint } from "./types";
 
-const SUI_RPC_URL = process.env.SUI_RPC_URL!;
+const SUI_RPC_URL = process.env.SUI_RPC_URL || "https://fullnode.mainnet.sui.io:443";
 
-// 1) 先把 address 變成標準 Sui 形式：0x + 64 位 hex
 function normalizeSuiAddress(address: string): string | null {
   const trimmed = address.trim().toLowerCase();
   const no0x = trimmed.startsWith("0x") ? trimmed.slice(2) : trimmed;
-
-  if (!/^[0-9a-f]+$/.test(no0x)) {
-    return null;
-  }
-  if (no0x.length > 64) {
-    return null;
-  }
-
-  const padded = no0x.padStart(64, "0");
-  return "0x" + padded;
+  if (!/^[0-9a-f]+$/.test(no0x) || no0x.length > 64) return null;
+  return "0x" + no0x.padStart(64, "0");
 }
-
-// TODO: 這裡之後換成真正的 Bucket package Id
-const BUCKET_PACKAGE_IDS: string[] = [
-  // "0x<your-bucket-package-id-1>",
-];
 
 const client = new SuiClient({ url: SUI_RPC_URL });
 
-function isBucketTx(tx: any): boolean {
-  if (BUCKET_PACKAGE_IDS.length === 0) {
-    // 目前先把「所有 tx」當 demo，之後再用 packageId 篩
-    return true;
-  }
-
-  const events = (tx as any).events;
-  if (events) {
-    for (const ev of events) {
-      const pkg = (ev as any).packageId || (ev as any).package || (ev as any).sender;
-      if (pkg && BUCKET_PACKAGE_IDS.includes(pkg)) return true;
-    }
-  }
-  return false;
-}
-
-export async function buildBucketYearlySummary(
+export async function buildSuiYearlySummary(
   address: string,
   year: number
-): Promise<BucketYearlySummary> {
+): Promise<SuiYearlySummary> {
+  console.log(`[Analytics] Starting fetch for ${address} in ${year}`);
+  
   const normalized = normalizeSuiAddress(address);
-
   if (!normalized) {
-    // 地址格式不合法 → 不打 RPC，直接回一個空 summary
-    return {
-      address,
-      year,
-      totalBucketTxCount: 0,
-      activeBucketDays: 0,
-      activityTimeline: [],
-      personalityTags: [],
-      ogSentence: "Invalid Sui address format.",
-    };
+    throw new Error("Invalid address format");
   }
 
   const from = new Date(`${year}-01-01T00:00:00.000Z`).getTime();
@@ -67,72 +28,68 @@ export async function buildBucketYearlySummary(
 
   let hasNextPage = true;
   let cursor: string | null = null;
+  let pageCount = 0;
+  const MAX_PAGES = 30; // 降低頁數避免 timeout，30 頁大約 1500 筆交易
 
-  const bucketDates: Date[] = [];
+  const txDates: Date[] = [];
   const monthlyMap = new Map<string, number>();
 
-  while (hasNextPage) {
-    const page = await client.queryTransactionBlocks({
-      filter: { FromAddress: normalized }, // 👈 用正規化後的地址
-      cursor: cursor || undefined,
-      limit: 50,
-      order: "ascending",
-      options: {
-        showInput: true,
-        showEffects: true,
-        showEvents: true,
-      },
-    });
+  try {
+    while (hasNextPage && pageCount < MAX_PAGES) {
+      // console.log(`[Analytics] Fetching page ${pageCount + 1}...`);
+      const page = await client.queryTransactionBlocks({
+        filter: { FromAddress: normalized },
+        cursor: cursor || undefined,
+        limit: 50,
+        order: "descending",
+        // 關鍵：必須設定 showInput 或 showEffects 才能確保 timestampMs 被回傳
+        options: { 
+            showInput: true,
+            showEffects: true 
+        },
+      });
 
-    for (const tx of page.data) {
-      const tsMs = tx.timestampMs ? Number(tx.timestampMs) : null;
-      if (!tsMs) continue;
+      pageCount++;
 
-      if (tsMs < from || tsMs > to) continue;
-      if (!isBucketTx(tx)) continue;
+      if (!page.data || page.data.length === 0) {
+        break;
+      }
 
-      const date = new Date(tsMs);
-      bucketDates.push(date);
+      for (const tx of page.data) {
+        const tsMs = tx.timestampMs ? Number(tx.timestampMs) : null;
+        if (!tsMs) continue; // Skip if no timestamp
 
-      const ym = `${date.getUTCFullYear()}-${String(
-        date.getUTCMonth() + 1
-      ).padStart(2, "0")}`;
+        // 檢查年份
+        if (tsMs > to) continue; // 還沒到 2025 的交易 (理論上 descending 不會發生，除非系統時間錯亂)
+        if (tsMs < from) {
+          // 已經早於 2025，停止搜尋
+          hasNextPage = false;
+          break;
+        }
 
-      monthlyMap.set(ym, (monthlyMap.get(ym) ?? 0) + 1);
+        const date = new Date(tsMs);
+        txDates.push(date);
+
+        // 格式化月份 2025-01
+        const ym = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+        monthlyMap.set(ym, (monthlyMap.get(ym) ?? 0) + 1);
+      }
+
+      if (hasNextPage && page.hasNextPage && page.nextCursor) {
+        cursor = page.nextCursor;
+      } else {
+        hasNextPage = false;
+      }
     }
-
-    if (page.hasNextPage && page.nextCursor) {
-      cursor = page.nextCursor;
-      hasNextPage = true;
-    } else {
-      hasNextPage = false;
-    }
+  } catch (e: any) {
+    console.error("[Analytics] RPC Error:", e.message);
+    // 不拋出錯誤，而是回傳目前抓到的數據 (Partial data is better than no data)
   }
 
-  if (bucketDates.length === 0) {
-    return {
-      address,
-      year,
-      totalBucketTxCount: 0,
-      activeBucketDays: 0,
-      activityTimeline: [],
-      personalityTags: [],
-      ogSentence: "No Bucket activity found for this year.",
-    };
-  }
+  console.log(`[Analytics] Finished. Total Txs found: ${txDates.length}`);
 
-  const totalBucketTxCount = bucketDates.length;
-
-  const daySet = new Set(
-    bucketDates.map((d) => d.toISOString().slice(0, 10))
-  );
-  const activeBucketDays = daySet.size;
-
-  const sortedDates = [...bucketDates].sort((a, b) => a.getTime() - b.getTime());
-  const firstBucketTxDate = sortedDates[0].toISOString();
-  const lastBucketTxDate = sortedDates[sortedDates.length - 1].toISOString();
-
-  const activityTimeline: BucketActivityTimelinePoint[] = [];
+  // 初始化所有月份為 0，確保圖表不會斷掉
+  const activityTimeline: ActivityTimelinePoint[] = [];
   for (let m = 1; m <= 12; m++) {
     const ym = `${year}-${String(m).padStart(2, "0")}`;
     activityTimeline.push({
@@ -141,27 +98,50 @@ export async function buildBucketYearlySummary(
     });
   }
 
+  // Handle empty case
+  if (txDates.length === 0) {
+    return {
+      address,
+      year,
+      totalTxCount: 0,
+      activeDays: 0,
+      activityTimeline, // 就算沒資料也要回傳空的月份陣列
+      personalityTags: ["Newcomer"],
+      ogSentence: "Ready to start the journey on Sui.",
+    };
+  }
+
+  const totalTxCount = txDates.length;
+  const daySet = new Set(txDates.map((d) => d.toISOString().slice(0, 10)));
+  const activeDays = daySet.size;
+
+  // 排序日期找出第一筆和最後一筆
+  const sortedDates = txDates.sort((a, b) => a.getTime() - b.getTime());
+  const firstTxDate = sortedDates[0].toISOString();
+  const lastTxDate = sortedDates[sortedDates.length - 1].toISOString();
+
+  // Tags Logic
   const personalityTags: string[] = [];
   let ogSentence = "";
 
-  if (totalBucketTxCount < 10) {
-    personalityTags.push("Quiet Observer");
-    ogSentence = "You quietly explored Bucket this year.";
-  } else if (totalBucketTxCount < 100) {
-    personalityTags.push("Active User");
-    ogSentence = "You actively used Bucket throughout the year.";
+  if (totalTxCount < 10) {
+    personalityTags.push("Just Looking");
+    ogSentence = "You took a peek at Sui this year.";
+  } else if (totalTxCount < 100) {
+    personalityTags.push("Explorer");
+    ogSentence = "You actively explored the ecosystem.";
   } else {
     personalityTags.push("Power User");
-    ogSentence = "You were a true Bucket power user in this year.";
+    ogSentence = "You are a core part of the Sui network.";
   }
 
   return {
     address,
     year,
-    totalBucketTxCount,
-    activeBucketDays,
-    firstBucketTxDate,
-    lastBucketTxDate,
+    totalTxCount,
+    activeDays,
+    firstTxDate,
+    lastTxDate,
     activityTimeline,
     personalityTags,
     ogSentence,

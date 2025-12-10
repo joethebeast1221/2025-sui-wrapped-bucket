@@ -2,7 +2,7 @@
 import React from "react";
 import { ImageResponse } from "next/og";
 
-export const runtime = "edge"; // Edge runtime 比較適合做圖
+export const runtime = "edge";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -11,10 +11,9 @@ export async function GET(req: Request) {
   const shortAddress = searchParams.get("addr") || "";
   const tx = searchParams.get("tx") || "0";
   const days = searchParams.get("days") || "0";
-  const sentence =
-    searchParams.get("sentence") || "Your year with Bucket on Sui.";
   const pfp = searchParams.get("pfp") || "";
 
+  // 1200x630 (OG standard) 或者是直式。為了讓 Link Preview 正常，通常還是維持橫式，但內容排版我們讓它像卡片。
   return new ImageResponse(
     (
       <div
@@ -22,123 +21,57 @@ export async function GET(req: Request) {
           width: 1200,
           height: 630,
           display: "flex",
-          flexDirection: "row",
           alignItems: "center",
-          justifyContent: "space-between",
-          padding: 60,
-          background:
-            "radial-gradient(circle at 10% 20%, #1b3254 0%, #020408 55%, #000000 100%)",
-          color: "white",
-          fontFamily:
-            "system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif",
+          justifyContent: "center",
+          background: "#020408",
+          fontFamily: "sans-serif",
         }}
       >
-        {/* 左邊：文字區 */}
-        <div
-          style={{
-            flex: 1,
+        {/* Background gradient */}
+        <div style={{ position: "absolute", width: "1000px", height: "1000px", background: "rgba(59,130,246,0.2)", filter: "blur(200px)", borderRadius: "500px" }} />
+
+        {/* The Card (Vertical centered) */}
+        <div style={{
+            width: 340,
+            height: 520,
+            background: "#080c14",
+            borderRadius: 32,
+            border: "2px solid rgba(255,255,255,0.1)",
             display: "flex",
             flexDirection: "column",
-            gap: 24,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 16,
-              letterSpacing: 6,
-              textTransform: "uppercase",
-              opacity: 0.7,
-            }}
-          >
-            Bucket 2025 Wrapped
-          </div>
-
-          <div
-            style={{
-              fontSize: 38,
-              fontWeight: 300,
-              lineHeight: 1.25,
-              maxWidth: 640,
-            }}
-          >
-            {sentence}
-          </div>
-
-          <div
-            style={{
-              fontSize: 22,
-              opacity: 0.9,
-            }}
-          >
-            {tx} Bucket transactions · {days} active days on Sui
-          </div>
-
-          <div
-            style={{
-              fontSize: 18,
-              opacity: 0.7,
-            }}
-          >
-            {handle ? `@${handle}` : shortAddress}
-          </div>
-
-          <div
-            style={{
-              marginTop: 12,
-              fontSize: 16,
-              opacity: 0.55,
-            }}
-          >
-            Built with real on-chain data from Bucket Protocol on Sui.
-          </div>
-        </div>
-
-        {/* 右邊：PFP 卡片 */}
-        <div
-          style={{
-            width: 260,
-            display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <div
-            style={{
-              position: "relative",
-              width: 180,
-              height: 180,
-              borderRadius: 48,
-              background:
-                "radial-gradient(circle at 30% 10%, rgba(93,188,252,0.8), rgba(0,0,0,0.9))",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow:
-                "0 0 45px rgba(56,189,248,0.75), 0 0 120px rgba(15,118,110,0.7)",
-              overflow: "hidden",
-              border: "1px solid rgba(255,255,255,0.28)",
-            }}
-          >
-            {pfp ? (
-              <img
-                src={pfp}
-                alt="avatar"
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                }}
-              />
-            ) : (
-              <span
-                style={{
-                  fontSize: 72,
-                }}
-              >
-                🪣
-              </span>
-            )}
-          </div>
+            justifyContent: "space-between",
+            padding: 30,
+            boxShadow: "0 20px 60px rgba(0,0,0,0.8)"
+        }}>
+            {/* Header */}
+            <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', color: '#94a3b8', fontSize: 14, textTransform: 'uppercase', letterSpacing: 2 }}>
+                <span>Bucket Wrapped</span>
+                <span>2025</span>
+            </div>
+
+            {/* Avatar & Name */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+                {pfp ? (
+                    <img src={pfp} style={{ width: 120, height: 120, borderRadius: 60, border: "4px solid #1e293b" }} />
+                ) : (
+                    <div style={{ width: 120, height: 120, borderRadius: 60, background: "#1e293b" }} />
+                )}
+                <div style={{ fontSize: 32, color: 'white', fontWeight: 'bold' }}>{handle || shortAddress}</div>
+            </div>
+
+            {/* Stats */}
+            <div style={{ display: 'flex', width: '100%', background: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 20, justifyContent: 'space-around' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <span style={{ fontSize: 36, color: 'white', fontWeight: 'bold' }}>{tx}</span>
+                    <span style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 2 }}>Transactions</span>
+                </div>
+                <div style={{ width: 1, background: 'rgba(255,255,255,0.1)' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <span style={{ fontSize: 36, color: 'white', fontWeight: 'bold' }}>{days}</span>
+                    <span style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 2 }}>Active Days</span>
+                </div>
+            </div>
         </div>
       </div>
     ),

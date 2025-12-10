@@ -1,22 +1,22 @@
 // lib/types.ts
 
-export interface BucketActivityTimelinePoint {
+export interface ActivityTimelinePoint {
   month: string;      // '2025-01' .. '2025-12'
   txCount: number;
 }
 
-export interface BucketYearlySummary {
+export interface SuiYearlySummary {
   address: string;
   year: number;
 
-  totalBucketTxCount: number;
-  activeBucketDays: number;
+  totalTxCount: number;      // 改名：不再是 totalBucketTxCount
+  activeDays: number;        // 改名：不再是 activeBucketDays
 
-  firstBucketTxDate?: string;
-  lastBucketTxDate?: string;
+  firstTxDate?: string;
+  lastTxDate?: string;
 
-  activityTimeline: BucketActivityTimelinePoint[];
+  activityTimeline: ActivityTimelinePoint[];
 
-  personalityTags: string[];  // e.g. ['Zen Farmer']
-  ogSentence: string;         // e.g. "You calmly farmed with Bucket all year."
+  personalityTags: string[];
+  ogSentence: string;
 }
