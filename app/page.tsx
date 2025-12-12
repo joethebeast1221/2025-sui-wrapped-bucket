@@ -3,11 +3,14 @@
 import { useState, useEffect, useRef, MouseEvent } from "react";
 import { signIn, useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { SuiClient, getFullnodeUrl } from "@mysten/sui.js/client";
 
 // 🕒 設定活動結束時間
 const SEASON_END_DATE = new Date("2026-01-07T23:59:59");
 
-// 預覽用的 3D 卡片組件
+// ✨ 初始化 SuiClient (用於解析域名)
+const suiClient = new SuiClient({ url: getFullnodeUrl("mainnet") });
+
 function MockTiltCard() {
   const cardRef = useRef<HTMLDivElement>(null);
   const [rotate, setRotate] = useState({ x: 0, y: 0 });
@@ -34,9 +37,7 @@ function MockTiltCard() {
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      {/* 背景光暈 */}
       <div className="absolute inset-0 bg-blue-500/20 blur-[60px] rounded-full" />
-      
       <div 
         ref={cardRef}
         className="card-inner relative w-[280px] h-[420px] rounded-[24px] overflow-hidden bg-[#080c14] border border-white/20 shadow-2xl"
@@ -46,8 +47,6 @@ function MockTiltCard() {
         }}
       >
         <div className="card-glare absolute inset-0 z-20" />
-        
-        {/* Mock Content */}
         <div className="relative z-10 h-full flex flex-col justify-between p-5">
             <div className="flex justify-between items-center opacity-70">
                 <div className="flex items-center gap-1.5">
@@ -56,7 +55,6 @@ function MockTiltCard() {
                 </div>
                 <div className="px-1.5 py-0.5 border border-white/10 rounded text-[7px] text-white/50">2025</div>
             </div>
-            
             <div className="flex-1 flex flex-col items-center justify-center gap-3">
                 <div className="relative w-28 h-28 rounded-full p-1 bg-gradient-to-b from-blue-400 to-purple-600 border-2 border-white/20">
                     <img src="/bucket-default-pfp.png" className="w-full h-full rounded-full bg-black object-cover bucket-filter" alt="Mock" />
@@ -68,7 +66,6 @@ function MockTiltCard() {
                     </div>
                 </div>
             </div>
-
             <div className="grid grid-cols-2 divide-x divide-white/10 border-t border-white/10 pt-3 bg-black/20 rounded-b-xl">
                 <div className="text-center">
                     <div className="text-lg font-mono text-white">888</div>
@@ -120,21 +117,53 @@ function CountdownTimer() {
 }
 
 export default function Home() {
-  const [address, setAddress] = useState("");
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false); // Loading 狀態
   const router = useRouter();
   const { data: session } = useSession();
   const user = session as any;
 
-  const handleCheck = (e: React.FormEvent) => {
+  const handleCheck = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!address) return;
-    router.push(`/wrapped/${address}?year=2025`);
+    if (!input) return;
+
+    setIsLoading(true);
+    let targetAddress = input.trim();
+    let suiNsName = null;
+
+    // ✨ 核心邏輯：SuiNS 解析
+    // 如果輸入的是 .sui 結尾，就嘗試去鏈上解析
+    if (targetAddress.toLowerCase().endsWith(".sui")) {
+        try {
+            const resolved = await suiClient.resolveNameServiceAddress({
+                name: targetAddress
+            });
+            
+            if (resolved) {
+                suiNsName = targetAddress; // 記住這個名字
+                targetAddress = resolved;  // 換成真實地址
+            } else {
+                alert("Could not resolve this SuiNS name.");
+                setIsLoading(false);
+                return;
+            }
+        } catch (err) {
+            console.error("SuiNS Error:", err);
+            alert("Error resolving SuiNS name. Please try again.");
+            setIsLoading(false);
+            return;
+        }
+    }
+
+    // ✨ 跳轉邏輯：如果有解析到名字，就把它放在 URL 參數裡傳給下一頁
+    const query = suiNsName ? `?year=2025&name=${encodeURIComponent(suiNsName)}` : `?year=2025`;
+    router.push(`/wrapped/${targetAddress}${query}`);
   };
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden bg-[#020408]">
       
-      {/* ✨ 新增：右上角的 Open Bucket App 按鈕 */}
+      {/* 右上角 Open App 按鈕 */}
       <a
         href="https://www.bucketprotocol.io/earn"
         target="_blank"
@@ -147,6 +176,7 @@ export default function Home() {
         </svg>
       </a>
 
+      {/* 背景特效 */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-blue-600/10 blur-[120px] rounded-full" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-cyan-600/10 blur-[120px] rounded-full" />
@@ -154,7 +184,7 @@ export default function Home() {
 
       <div className="relative z-10 w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
         
-        {/* Left: Content & Inputs */}
+        {/* 左側：內容區 */}
         <div className="flex flex-col items-center lg:items-start text-center lg:text-left gap-8 order-2 lg:order-1">
             <div className="space-y-4">
                 <div className="flex items-center justify-center lg:justify-start gap-3 opacity-90">
@@ -165,13 +195,14 @@ export default function Home() {
                     2025 <br/> <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">Wrapped</span>
                 </h1>
                 <p className="text-slate-400 text-lg max-w-md">
-                    Visualize your 2025 Sui journey. <br/>Generate your legacy card now.
+                    Visualize your on-chain impact. <br/>Mint your legacy card now.
                 </p>
                 <div className="flex justify-center lg:justify-start">
                     <CountdownTimer />
                 </div>
             </div>
 
+            {/* 輸入區塊 */}
             <div className="w-full max-w-md grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="h-12">
                     {!user ? (
@@ -199,23 +230,26 @@ export default function Home() {
                 <form onSubmit={handleCheck} className="h-12 flex gap-2">
                     <input
                         type="text"
-                        placeholder="Sui Address..."
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
+                        placeholder="Address or .sui name"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
                         className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 transition font-mono text-sm"
+                        disabled={isLoading}
                     />
                     <button
                         type="submit"
-                        disabled={!address}
-                        className="px-5 bg-white text-black font-bold rounded-xl hover:scale-105 active:scale-95 transition disabled:opacity-50 text-sm"
+                        disabled={!input || isLoading}
+                        className="px-5 bg-white text-black font-bold rounded-xl hover:scale-105 active:scale-95 transition disabled:opacity-50 text-sm whitespace-nowrap min-w-[60px]"
                     >
-                        GO
+                        {isLoading ? (
+                            <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin mx-auto"/>
+                        ) : "GO"}
                     </button>
                 </form>
             </div>
         </div>
 
-        {/* Right: Card Preview (Floating) */}
+        {/* 右側：浮動卡片 */}
         <div className="flex justify-center items-center order-1 lg:order-2 animate-float">
             <MockTiltCard />
         </div>
