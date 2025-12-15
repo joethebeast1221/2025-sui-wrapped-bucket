@@ -1,257 +1,174 @@
 "use client";
 
-import { useState, useEffect, useRef, MouseEvent } from "react";
+import { useEffect, useState } from "react";
 import { signIn, useSession, signOut } from "next-auth/react";
+import { ConnectButton, useCurrentAccount, useSignPersonalMessage } from "@mysten/dapp-kit";
 import { useRouter } from "next/navigation";
-import { SuiClient, getFullnodeUrl } from "@mysten/sui.js/client";
+import { LandingCardPreview } from "@/components/LandingCardPreview"; // 引入新組件
 
-// 🕒 設定活動結束時間
-const SEASON_END_DATE = new Date("2026-01-07T23:59:59");
+export default function Home() {
+  const { data: session } = useSession();
+  const currentAccount = useCurrentAccount();
+  const { mutateAsync: signPersonalMessage } = useSignPersonalMessage();
+  const router = useRouter();
 
-// ✨ 初始化 SuiClient (用於解析域名)
-const suiClient = new SuiClient({ url: getFullnodeUrl("mainnet") });
+  const [step, setStep] = useState(1);
+  const [isBinding, setIsBinding] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
-function MockTiltCard() {
-  const cardRef = useRef<HTMLDivElement>(null);
-  const [rotate, setRotate] = useState({ x: 0, y: 0 });
+  // 自動判斷步驟
+  useEffect(() => {
+    if (!session) {
+      setStep(1);
+    } else if (!currentAccount) {
+      setStep(2);
+    } else {
+      setStep(3);
+    }
+  }, [session, currentAccount]);
 
-  const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
-    if (!cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-    const rotateX = ((y - centerY) / centerY) * -10; 
-    const rotateY = ((x - centerX) / centerX) * 10;
-    setRotate({ x: rotateX, y: rotateY });
-  };
+  const handleVerifyAndBind = async () => {
+    if (!session || !currentAccount) return;
+    setIsBinding(true);
+    setErrorMsg("");
 
-  const handleMouseLeave = () => {
-    setRotate({ x: 0, y: 0 });
+    try {
+      const message = `Bind Twitter @${(session as any).twitterHandle} to Wallet ${currentAccount.address}`;
+      const messageBytes = new TextEncoder().encode(message);
+
+      const result = await signPersonalMessage({ message: messageBytes });
+
+      const res = await fetch("/api/campaign/bind", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          twitterId: (session as any).twitterUserId,
+          walletAddress: currentAccount.address,
+          signature: result.signature,
+          messageBytes: Buffer.from(messageBytes).toString('base64')
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Binding failed");
+
+      router.push(`/wrapped/${currentAccount.address}?year=2025`);
+
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || "Signing failed. Please try again.");
+    } finally {
+      setIsBinding(false);
+    }
   };
 
   return (
-    <div 
-      className="card-perspective relative group cursor-pointer"
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-    >
-      <div className="absolute inset-0 bg-blue-500/20 blur-[60px] rounded-full" />
-      <div 
-        ref={cardRef}
-        className="card-inner relative w-[280px] h-[420px] rounded-[24px] overflow-hidden bg-[#080c14] border border-white/20 shadow-2xl"
-        style={{
-          transform: `rotateX(${rotate.x}deg) rotateY(${rotate.y}deg)`,
-          backgroundImage: "linear-gradient(160deg, #1e293b 0%, #020408 60%)",
-        }}
-      >
-        <div className="card-glare absolute inset-0 z-20" />
-        <div className="relative z-10 h-full flex flex-col justify-between p-5">
-            <div className="flex justify-between items-center opacity-70">
-                <div className="flex items-center gap-1.5">
-                    <img src="/bucket-default-pfp.png" className="w-3.5 h-3.5" alt="Logo" />
-                    <span className="text-[9px] font-bold tracking-tight text-white font-sans">Bucket</span>
+    <main className="min-h-screen bg-[#020408] text-white flex items-center justify-center p-6 relative overflow-hidden">
+      
+      {/* 背景裝飾 */}
+      <div className="fixed inset-0 pointer-events-none select-none">
+        <div className="absolute top-[-20%] left-[-10%] w-[800px] h-[800px] bg-blue-600/20 blur-[150px] rounded-full opacity-60" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-cyan-600/20 blur-[150px] rounded-full opacity-60" />
+      </div>
+
+      {/* 主要內容容器 (Grid 佈局) */}
+      <div className="relative z-10 w-full max-w-5xl grid lg:grid-cols-2 gap-12 items-center">
+        
+        {/* 左側：表單區塊 */}
+        <div className="flex flex-col justify-center order-2 lg:order-1">
+            <div className="mb-8">
+                <div className="flex items-center gap-3 mb-4">
+                    <img src="/bucket-default-pfp.png" className="w-10 h-10" alt="Logo" />
+                    <span className="text-xl font-bold font-sans">Bucket Protocol</span>
                 </div>
-                <div className="px-1.5 py-0.5 border border-white/10 rounded text-[7px] text-white/50">2025</div>
+                <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-tight">
+                    Your 2025 <br/>
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">
+                        On-Chain Legacy
+                    </span>
+                </h1>
+                <p className="text-lg text-slate-400 mt-4 max-w-md leading-relaxed">
+                  Connect your accounts to mint your personalized year-in-review card. Reveal your score, rewards, and ecosystem footprint.
+                </p>
             </div>
-            <div className="flex-1 flex flex-col items-center justify-center gap-3">
-                <div className="relative w-28 h-28 rounded-full p-1 bg-gradient-to-b from-blue-400 to-purple-600 border-2 border-white/20">
-                    <img src="/bucket-default-pfp.png" className="w-full h-full rounded-full bg-black object-cover bucket-filter" alt="Mock" />
-                </div>
-                <div className="text-center">
-                    <h3 className="text-xl font-bold text-white">Your Name</h3>
-                    <div className="inline-block bg-[#050a12] border border-white/20 px-2 py-0.5 rounded-full text-[7px] font-bold uppercase tracking-[0.2em] text-blue-300 mt-2">
-                        CURRENT
+
+            {/* 連接流程表單 (加上了 backdrop-blur 讓它更融入背景) */}
+            <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-2xl backdrop-blur-md relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-500" />
+                
+                <div className="space-y-5 relative">
+                    {/* 連接線 */}
+                    <div className="absolute left-[19px] top-4 bottom-4 w-0.5 bg-white/10 -z-10" />
+
+                    {/* STEP 1: Twitter */}
+                    <div className={`flex gap-4 transition-all duration-500 ${step > 1 ? 'opacity-60 grayscale' : 'opacity-100'}`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border-2 transition-colors ${session ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-blue-600 border-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.5)]'}`}>
+                            {session ? '✓' : '1'}
+                        </div>
+                        <div className="flex-1 pt-1">
+                            <h3 className="font-bold text-sm mb-2 flex items-center justify-between">
+                                <span>Connect X (Twitter)</span>
+                                {session && <span className="text-[10px] text-green-400 font-mono">Verified</span>}
+                            </h3>
+                            {!session ? (
+                                <button onClick={() => signIn("twitter")} className="w-full py-3 bg-[#0f1419] hover:bg-[#1a202c] text-white font-bold rounded-xl text-sm border border-white/10 transition flex items-center justify-center gap-2">
+                                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><g><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></g></svg>
+                                    Sign In with X
+                                </button>
+                            ) : (
+                                <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/10">
+                                    <span className="text-sm font-bold text-slate-300">@{(session as any).twitterHandle}</span>
+                                    <button onClick={() => signOut()} className="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-slate-300 transition">Change</button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* STEP 2: Wallet */}
+                    <div className={`flex gap-4 transition-all duration-500 ${step === 2 ? 'opacity-100' : 'opacity-60 grayscale'}`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border-2 transition-colors ${currentAccount ? 'bg-green-500/20 border-green-500 text-green-400' : (step >= 2 ? 'bg-blue-600 border-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.5)]' : 'border-white/20 text-slate-500')}`}>
+                            {currentAccount ? '✓' : '2'}
+                        </div>
+                        <div className="flex-1 pt-1 relative z-10">
+                            <h3 className="font-bold text-sm mb-2 flex items-center justify-between">
+                                <span>Connect Sui Wallet</span>
+                                {currentAccount && <span className="text-[10px] text-green-400 font-mono">Connected</span>}
+                            </h3>
+                            <div className="sui-connect-button-wrapper [&>button]:w-full [&>button]:justify-center [&>button]:py-3 [&>button]:!bg-gradient-to-r [&>button]:from-blue-600 [&>button]:to-indigo-600 [&>button]:hover:from-blue-500 [&>button]:hover:to-indigo-500 [&>button]:!text-white [&>button]:!font-bold [&>button]:!rounded-xl [&>button]:!border-0 [&>button]:shadow-lg">
+                                <ConnectButton className="w-full" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* STEP 3: Sign */}
+                    <div className={`flex gap-4 transition-all duration-500 ${step === 3 ? 'opacity-100' : 'opacity-60 grayscale'}`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border-2 transition-colors ${step === 3 ? 'bg-cyan-500 border-cyan-500 text-white animate-pulse shadow-[0_0_15px_rgba(6,182,212,0.5)]' : 'border-white/20 text-slate-500'}`}>
+                            3
+                        </div>
+                        <div className="flex-1 pt-1">
+                            <h3 className="font-bold text-sm mb-2">Mint Your Card</h3>
+                            <button 
+                                onClick={handleVerifyAndBind}
+                                disabled={step !== 3 || isBinding}
+                                className="w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold rounded-xl text-base transition shadow-[0_0_20px_rgba(6,182,212,0.3)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 relative overflow-hidden group"
+                            >
+                                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+                                {isBinding ? (
+                                    <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/> Verifying...</>
+                                ) : (
+                                    <>Sign & Reveal Legacy</>
+                                )}
+                            </button>
+                            {errorMsg && <p className="text-xs text-red-400 mt-3 text-center bg-red-950/30 p-2 rounded border border-red-900/50">{errorMsg}</p>}
+                        </div>
                     </div>
                 </div>
             </div>
-            <div className="grid grid-cols-2 divide-x divide-white/10 border-t border-white/10 pt-3 bg-black/20 rounded-b-xl">
-                <div className="text-center">
-                    <div className="text-lg font-mono text-white">888</div>
-                    <div className="text-[6px] text-slate-500 uppercase tracking-widest">TXs</div>
-                </div>
-                <div className="text-center">
-                    <div className="text-lg font-mono text-white">365</div>
-                    <div className="text-[6px] text-slate-500 uppercase tracking-widest">Days</div>
-                </div>
-            </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CountdownTimer() {
-  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0 });
-
-  useEffect(() => {
-    const calculateTimeLeft = () => {
-      const difference = SEASON_END_DATE.getTime() - new Date().getTime();
-      if (difference > 0) {
-        return {
-          days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-          hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-          minutes: Math.floor((difference / 1000 / 60) % 60),
-        };
-      }
-      return { days: 0, hours: 0, minutes: 0 };
-    };
-
-    setTimeLeft(calculateTimeLeft());
-    const timer = setInterval(() => {
-      setTimeLeft(calculateTimeLeft());
-    }, 60000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  return (
-    <div className="flex items-center gap-3 text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-500/30 px-4 py-2 rounded-full animate-pulse">
-      <span className="uppercase tracking-widest text-slate-400">Season Ends:</span>
-      <span className="font-bold text-white">
-        {timeLeft.days}d {timeLeft.hours}h {timeLeft.minutes}m
-      </span>
-    </div>
-  );
-}
-
-export default function Home() {
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false); // Loading 狀態
-  const router = useRouter();
-  const { data: session } = useSession();
-  const user = session as any;
-
-  const handleCheck = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input) return;
-
-    setIsLoading(true);
-    let targetAddress = input.trim();
-    let suiNsName = null;
-
-    // ✨ 核心邏輯：SuiNS 解析
-    // 如果輸入的是 .sui 結尾，就嘗試去鏈上解析
-    if (targetAddress.toLowerCase().endsWith(".sui")) {
-        try {
-            const resolved = await suiClient.resolveNameServiceAddress({
-                name: targetAddress
-            });
-            
-            if (resolved) {
-                suiNsName = targetAddress; // 記住這個名字
-                targetAddress = resolved;  // 換成真實地址
-            } else {
-                alert("Could not resolve this SuiNS name.");
-                setIsLoading(false);
-                return;
-            }
-        } catch (err) {
-            console.error("SuiNS Error:", err);
-            alert("Error resolving SuiNS name. Please try again.");
-            setIsLoading(false);
-            return;
-        }
-    }
-
-    // ✨ 跳轉邏輯：如果有解析到名字，就把它放在 URL 參數裡傳給下一頁
-    const query = suiNsName ? `?year=2025&name=${encodeURIComponent(suiNsName)}` : `?year=2025`;
-    router.push(`/wrapped/${targetAddress}${query}`);
-  };
-
-  return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden bg-[#020408]">
-      
-      {/* 右上角 Open App 按鈕 */}
-      <a
-        href="https://www.bucketprotocol.io/earn"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="absolute top-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 rounded-full text-xs font-bold text-white transition-all hover:scale-105 backdrop-blur-sm group"
-      >
-        <span>Open Bucket App</span>
-        <svg className="w-3 h-3 text-slate-400 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-        </svg>
-      </a>
-
-      {/* 背景特效 */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-blue-600/10 blur-[120px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-cyan-600/10 blur-[120px] rounded-full" />
-      </div>
-
-      <div className="relative z-10 w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-        
-        {/* 左側：內容區 */}
-        <div className="flex flex-col items-center lg:items-start text-center lg:text-left gap-8 order-2 lg:order-1">
-            <div className="space-y-4">
-                <div className="flex items-center justify-center lg:justify-start gap-3 opacity-90">
-                    <img src="/bucket-default-pfp.png" className="w-8 h-8" alt="Bucket Logo" />
-                    <span className="text-2xl font-bold tracking-tight text-white font-sans">Bucket</span>
-                </div>
-                <h1 className="text-4xl md:text-6xl font-bold tracking-tighter text-white leading-tight">
-                    2025 <br/> <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">Wrapped</span>
-                </h1>
-                <p className="text-slate-400 text-lg max-w-md">
-                    Visualize your on-chain impact. <br/>Mint your legacy card now.
-                </p>
-                <div className="flex justify-center lg:justify-start">
-                    <CountdownTimer />
-                </div>
-            </div>
-
-            {/* 輸入區塊 */}
-            <div className="w-full max-w-md grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="h-12">
-                    {!user ? (
-                        <button
-                            onClick={() => signIn("twitter")}
-                            className="w-full h-full flex items-center justify-center gap-3 bg-[#0f1419] hover:bg-[#1a202c] border border-white/10 hover:border-white/30 rounded-xl transition-all"
-                        >
-                            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg>
-                            <span className="font-bold text-white text-sm">Connect X</span>
-                        </button>
-                    ) : (
-                        <button
-                            onClick={() => signOut()}
-                            className="w-full h-full flex items-center justify-center gap-2 bg-blue-500/10 border border-blue-500/30 rounded-xl px-3"
-                        >
-                            <img 
-                                src={user.twitterPfpUrl?.replace('_normal', '') || "/bucket-default-pfp.png"} 
-                                className="w-5 h-5 rounded-full border border-white/20" 
-                            />
-                            <span className="font-bold text-blue-200 truncate text-sm">@{user.twitterHandle}</span>
-                        </button>
-                    )}
-                </div>
-
-                <form onSubmit={handleCheck} className="h-12 flex gap-2">
-                    <input
-                        type="text"
-                        placeholder="Address or .sui name"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 transition font-mono text-sm"
-                        disabled={isLoading}
-                    />
-                    <button
-                        type="submit"
-                        disabled={!input || isLoading}
-                        className="px-5 bg-white text-black font-bold rounded-xl hover:scale-105 active:scale-95 transition disabled:opacity-50 text-sm whitespace-nowrap min-w-[60px]"
-                    >
-                        {isLoading ? (
-                            <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin mx-auto"/>
-                        ) : "GO"}
-                    </button>
-                </form>
-            </div>
         </div>
 
-        {/* 右側：浮動卡片 */}
-        <div className="flex justify-center items-center order-1 lg:order-2 animate-float">
-            <MockTiltCard />
+        {/* 右側：視覺區塊 (Mock Card) */}
+        <div className="flex items-center justify-center order-1 lg:order-2 animate-float-slow">
+            <LandingCardPreview />
         </div>
 
       </div>

@@ -69,7 +69,11 @@ body {
     transform: translateY(0px);
   }
 }
-
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
 .animate-float {
   animation: float 6s ease-in-out infinite; /* 6秒一個循環，無限播放 */
 }

@@ -1,9 +1,10 @@
 // lib/mockData.ts
 
+// 3x3 矩陣順序：Bucket 在中間 (Index 4)
 export const PROTOCOL_LIST = [
-  'Walrus', 'Suilend', 'Navi', 'Bluefin', 'Haedal', 'Bucket', 
-  'Ember', 'Cetus', 'Momentum', 'Scallop', 'Magma', 'Aftermath', 
-  'Alphafi', 'Deepbook', 'Ferra', 'Typus'
+  'NAVI',    'Suilend', 'Bluefin',
+  'Lake',    'Bucket',  'Cetus',
+  'Scallop', 'Walrus',  'Deepbook'
 ];
 
 export interface ApResult {
@@ -14,50 +15,51 @@ export interface ApResult {
 }
 
 // 模擬：隨機回傳一些協議，假裝是用戶交互過的
+// 未來這裡會改成真實 API 判斷：checkProtocolInteractions(address)
 export function getMockInteractedProtocols(address: string): string[] {
-  // 利用地址長度做個簡單的偽隨機，讓同一個地址每次重新整理結果固定
-  const count = (address.length % 10) + 2; // 產生 2 ~ 11 個協議
-  const shuffled = [...PROTOCOL_LIST].sort(() => 0.5 - Math.random());
-  return shuffled.slice(0, count);
+  // 必定包含 Bucket (因為是用戶來查 Bucket Wrapped)
+  const interacted = ['Bucket'];
+  
+  // 利用地址做偽隨機，隨機增加其他協議
+  const seed = address.charCodeAt(address.length - 1);
+  
+  PROTOCOL_LIST.forEach((p) => {
+    if (p !== 'Bucket') {
+      // 每個協議有 60% 機率顯示為已交互 (模擬活躍用戶)
+      if ((seed + p.length) % 10 > 3) { 
+        interacted.push(p);
+      }
+    }
+  });
+  
+  return interacted;
 }
 
-// 新版 AP 與稱號計算公式 (符合 PRD)
-export function calculateAdvancedAP(tx: number, days: number, protocolCount: number, hasBucket: boolean): ApResult {
+// 根據交互數量給予評價
+export function calculateAdvancedAP(tx: number, days: number, protocolCount: number): ApResult {
   // 1. 基礎分
-  const baseScore = (days * 20) + (tx * 1);
+  const baseScore = (days * 15) + (tx * 2);
   
-  // 2. 協議探索分 (每個 +300)
-  const protocolScore = protocolCount * 300;
+  // 2. 協議探索分 (每個 +500，鼓勵多協議交互)
+  const protocolScore = protocolCount * 500;
   
   // 3. 係數加成與稱號
   let multiplier = 1.0;
-  let rankTitle = "The Drifter";
-  let rankDesc = "You go where the current takes you. Just starting to feel the water.";
+  let rankTitle = "Sui Explorer";
+  let rankDesc = "You are just dipping your toes into the Move ecosystem.";
 
-  if (protocolCount >= 10) {
+  if (protocolCount >= 8) {
+      multiplier = 2.0;
+      rankTitle = "Sui Maximalist";
+      rankDesc = "You are the liquidity that flows through the entire network.";
+  } else if (protocolCount >= 5) {
       multiplier = 1.5;
-      rankTitle = "The Poseidon";
-      rankDesc = "You don't just swim in the ocean—you rule it. A true Sui Maximalist.";
-  } else if (protocolCount >= 6) {
-      multiplier = 1.2;
-      rankTitle = "The Commander";
-      rankDesc = "You command liquidity with precision. A true veteran of the deep.";
+      rankTitle = "DeFi Strategist";
+      rankDesc = "You know your way around the blue chips.";
   } else if (protocolCount >= 3) {
-      multiplier = 1.1;
-      rankTitle = "The Navigator";
-      rankDesc = "You've charted your own course. The ecosystem is opening up to you.";
-  }
-
-  // 特殊轉職：Bucket Pilot
-  if (hasBucket && days > 30 && protocolCount < 10) {
-      rankTitle = "The Bucket Pilot";
-      rankDesc = "The depths call to you. A true believer in stability.";
-  }
-  
-  // 特殊轉職：Grinder
-  if (protocolCount < 5 && tx > 1000) {
-      rankTitle = "The Grinder";
-      rankDesc = "Pure focus. You picked a lane and dominated it with sheer force.";
+      multiplier = 1.2;
+      rankTitle = "Active Voyager";
+      rankDesc = "Building your portfolio, one protocol at a time.";
   }
 
   const finalScore = Math.floor((baseScore + protocolScore) * multiplier);

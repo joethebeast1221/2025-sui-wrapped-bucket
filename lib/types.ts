@@ -1,7 +1,7 @@
 // lib/types.ts
 
 export interface ActivityTimelinePoint {
-  month: string;      // '2025-01' .. '2025-12'
+  month: string;
   txCount: number;
 }
 
@@ -9,8 +9,9 @@ export interface SuiYearlySummary {
   address: string;
   year: number;
 
-  totalTxCount: number;      // 改名：不再是 totalBucketTxCount
-  activeDays: number;        // 改名：不再是 activeBucketDays
+  totalTxCount: number;
+  activeDays: number;
+  bucketAnnualReward?: number; // ✨ 新增：Bucket 年度總收益
 
   firstTxDate?: string;
   lastTxDate?: string;
