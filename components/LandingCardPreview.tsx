@@ -75,7 +75,7 @@ export function LandingCardPreview() {
                 <div className="text-center w-full space-y-3 animate-pulse">
                     <div className="h-8 bg-white/10 rounded-lg w-3/4 mx-auto" />
                     <div className="h-16 bg-gradient-to-r from-yellow-400/20 to-orange-500/20 border border-yellow-500/30 rounded-xl w-full mx-auto flex items-center justify-center">
-                         <span className="text-xl font-bold text-yellow-500/50">Create to Reveal</span>
+                         <span className="text-xl font-bold text-yellow-500/50">Join to Reveal</span>
                     </div>
                 </div>
             </div>

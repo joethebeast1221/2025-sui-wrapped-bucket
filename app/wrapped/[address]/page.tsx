@@ -11,11 +11,12 @@ import { ShareImageButton } from "@/components/ShareImageButton";
 import { TweetButton } from "@/components/TweetButton";
 import { SocialFeed } from "@/components/SocialFeed";
 import { QuestActions } from "@/components/QuestActions";
-import { calculateAdvancedAP, getMockInteractedProtocols, PROTOCOL_LIST } from "@/lib/mockData";
+// ⚠️ 移除 getMockInteractedProtocols，只保留計算邏輯與列表
+import { calculateAdvancedAP, PROTOCOL_LIST } from "@/lib/mockData";
 
 const SEASON_END_DATE = new Date("2026-01-07T23:59:59");
 
-// ✨ 雙面翻轉卡片組件
+// ✨ 雙面翻轉卡片組件 (全深色版)
 function TiltFlipCard({ front, back }: { front: React.ReactNode, back: React.ReactNode }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [rotate, setRotate] = useState({ x: 0, y: 0 });
@@ -48,7 +49,7 @@ function TiltFlipCard({ front, back }: { front: React.ReactNode, back: React.Rea
       
       <div 
         ref={cardRef}
-        className="card-inner relative w-[360px] h-[540px] rounded-[24px] transition-transform duration-100 ease-out"
+        className="card-inner relative w-[360px] h-[540px] rounded-[32px] transition-transform duration-100 ease-out"
         style={{
           transform: `rotateX(${rotate.x}deg) rotateY(${rotate.y}deg)`,
         }}
@@ -60,36 +61,35 @@ function TiltFlipCard({ front, back }: { front: React.ReactNode, back: React.Rea
                 transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)"
             }}
         >
-            {/* --- FRONT FACE (Trading Card Style) --- */}
+            {/* --- FRONT FACE (Full Bleed Dark Style) --- */}
             <div 
-                className="absolute inset-0 w-full h-full rounded-[24px] overflow-hidden bg-[#e0e5ec] border-[8px] border-white shadow-2xl"
+                className="absolute inset-0 w-full h-full rounded-[32px] overflow-hidden bg-[#080c14] border border-white/10 shadow-2xl flex flex-col"
                 style={{ 
                     backfaceVisibility: "hidden",
-                    background: "linear-gradient(135deg, #f3f4f6 0%, #d1d5db 100%)"
                 }}
             >
-                {/* 內部深色容器 (Bucket Theme) */}
-                <div className="absolute inset-2 rounded-[16px] bg-[#080c14] overflow-hidden flex flex-col border border-black/10">
-                    <div className="absolute inset-0 opacity-20 bg-[url('/noise.png')]" />
-                    <div className="card-glare absolute inset-0 z-20 pointer-events-none mix-blend-overlay opacity-60" />
-                    {front}
-                </div>
+                {/* 卡片紋理與光暈 */}
+                <div className="absolute inset-0 opacity-20 bg-[url('/noise.png')]" />
+                <div className="card-glare absolute inset-0 z-20 pointer-events-none mix-blend-overlay opacity-60" />
                 
-                {/* 翻轉 ICON */}
-                <div className="absolute bottom-4 right-4 z-30 opacity-60 mix-blend-difference animate-pulse">
-                    <svg className="w-5 h-5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                {/* 內容 */}
+                <div className="relative z-10 h-full flex flex-col">
+                    {front}
                 </div>
             </div>
 
             {/* --- BACK FACE (Inventory/Matrix) --- */}
             <div 
-                className="absolute inset-0 w-full h-full rounded-[24px] overflow-hidden bg-[#080c14] border-[8px] border-slate-800 shadow-2xl"
+                className="absolute inset-0 w-full h-full rounded-[32px] overflow-hidden bg-[#080c14] border border-white/10 shadow-2xl flex flex-col"
                 style={{ 
                     backfaceVisibility: "hidden", 
                     transform: "rotateY(180deg)",
                 }}
             >
-                {back}
+                 <div className="absolute inset-0 opacity-20 bg-[url('/noise.png')]" />
+                 <div className="relative z-10 h-full flex flex-col">
+                    {back}
+                 </div>
             </div>
         </div>
       </div>
@@ -111,8 +111,7 @@ export default function WrappedPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [activePlayersCount, setActivePlayersCount] = useState(0); 
   
-  const [myProtocols, setMyProtocols] = useState<string[]>([]);
-
+  // ⚠️ 移除 myProtocols 的 State，直接從 summary 讀取
   const anySession = session as any | null;
   const twitterHandle = anySession?.twitterHandle as string | undefined;
   const twitterPfpUrl = anySession?.twitterPfpUrl?.replace('_normal', '') as string | undefined;
@@ -132,7 +131,9 @@ export default function WrappedPage() {
         
         if (!cancelled) {
             setSummary(data);
-            setMyProtocols(getMockInteractedProtocols(address)); 
+            
+            // ⚠️ 這裡不再需要 setMyProtocols(getMock...)，數據已經在 data.interactedProtocols 裡了
+            
             setActivePlayersCount(1200 + Math.floor(Math.random() * 100));
 
             const duration = 3 * 1000;
@@ -166,18 +167,22 @@ export default function WrappedPage() {
 
   const avatarUrl = twitterPfpUrl || "/bucket-default-pfp.png"; 
   const displayHandle = twitterHandle ? `@${twitterHandle}` : (suiNsName || shortAddress);
+  
+  // ✨ 關鍵修改：從後端數據讀取真實交互過的協議
+  const myProtocols = summary.interactedProtocols || []; 
+  
   const result = calculateAdvancedAP(summary.totalTxCount, summary.activeDays, myProtocols.length);
 
-  // --- 卡片正面 (Uniswap Style + Full Data) ---
+  // --- 卡片正面 (Full Bleed Dark Style + Full Data + CTA) ---
   const CardFront = () => {
     const rewardAmount = summary.bucketAnnualReward 
         ? summary.bucketAnnualReward.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }) 
         : "$0";
 
     return (
-        <div className="relative h-full flex flex-col z-10 font-sans p-1">
+        <div className="flex flex-col h-full font-sans relative">
             {/* 1. Header: Name & SP */}
-            <div className="flex justify-between items-center px-5 py-4 border-b border-white/10 bg-white/5 rounded-t-[14px]">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-white/10 bg-white/5">
                 <div className="font-bold text-lg text-white truncate max-w-[180px] tracking-tight">{displayHandle}</div>
                 <div className="flex items-center gap-1.5 text-cyan-400 font-black text-xl italic">
                     <span className="text-[10px] not-italic font-normal text-cyan-300/60 mr-1 mt-0.5">SP</span>
@@ -185,17 +190,15 @@ export default function WrappedPage() {
                 </div>
             </div>
 
-            {/* 2. Character Image (Adjusted size to fit stats) */}
-            <div className="px-5 py-5 flex-1 flex flex-col items-center justify-center min-h-0">
-                <div className="relative aspect-square w-full max-w-[240px] rounded-xl border-4 border-slate-700/50 overflow-hidden shadow-inner bg-gradient-to-b from-slate-800 to-black group">
+            {/* 2. Character Image */}
+            <div className="px-6 py-5 flex-1 flex flex-col items-center justify-center min-h-0">
+                <div className="relative aspect-square w-full max-w-[200px] rounded-2xl border-4 border-slate-700/50 overflow-hidden shadow-inner bg-gradient-to-b from-slate-800 to-black group">
                     <img src={avatarUrl} className="w-full h-full object-cover bucket-filter group-hover:scale-105 transition-transform duration-700" crossOrigin="anonymous" alt="pfp" />
-                    {/* Element Icon */}
                     <div className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 backdrop-blur border border-white/20 flex items-center justify-center shadow-lg">
                         <img src="/bucket-default-pfp.png" className="w-5 h-5" alt="water" />
                     </div>
                 </div>
                 
-                {/* Rank Title & Desc */}
                 <div className="mt-4 text-center w-full">
                     <h3 className="text-xl font-bold text-white mb-1">{result.rankTitle}</h3>
                     <p className="text-[10px] text-slate-400 font-light italic opacity-80 line-clamp-1 px-2">
@@ -205,7 +208,7 @@ export default function WrappedPage() {
             </div>
 
             {/* 3. Stats Grid (Highlight Earn + Show TX/Days) */}
-            <div className="px-4 pb-4">
+            <div className="px-5 pb-16"> {/* 留白給翻轉按鈕 */}
                 <div className="grid grid-cols-2 gap-3">
                     
                     {/* Full width: Bucket Rewards */}
@@ -230,19 +233,31 @@ export default function WrappedPage() {
                 </div>
             </div>
 
-            {/* 4. Footer */}
-            <div className="px-3 py-1.5 bg-black/40 text-[8px] text-slate-600 text-center uppercase tracking-[0.2em] flex justify-between rounded-b-[14px]">
-                <span>Bucket Protocol</span>
-                <span>2025 Edition</span>
+            {/* 4. Footer & Flip Action */}
+            <div className="absolute bottom-0 left-0 right-0">
+                {/* ⚠️ 修正：將按鈕往上移至 bottom-12，避開 Footer 文字 */}
+                <div className="absolute bottom-12 right-4 z-30 group cursor-pointer pointer-events-none">
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-600/90 border border-blue-400/50 shadow-lg shadow-blue-900/50 animate-bounce backdrop-blur-md">
+                        <span className="text-[9px] font-bold text-white uppercase tracking-wider">View Footprint</span>
+                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                    </div>
+                </div>
+
+                <div className="px-4 py-2 bg-black/60 text-[9px] text-slate-500 text-center uppercase tracking-[0.2em] flex justify-between border-t border-white/5 backdrop-blur-sm">
+                    <span>Bucket Protocol</span>
+                    <span>2025 Edition</span>
+                </div>
             </div>
         </div>
     );
   };
 
-  // --- 卡片背面 (3x3 Matrix) ---
+  // --- 卡片背面 (3x3 Matrix - 使用真實數據) ---
   const CardBack = () => (
-    <div className="relative h-full flex flex-col p-8 z-10 bg-[#080c14] font-sans">
-        <div className="w-full flex justify-between items-center mb-8 border-b border-white/10 pb-5">
+    <div className="h-full flex flex-col p-6 font-sans bg-[#080c14]">
+        <div className="w-full flex justify-between items-center mb-6 border-b border-white/10 pb-4">
             <div className="flex flex-col gap-1">
                 <span className="text-base font-bold text-white tracking-wider">Inventory</span>
                 <span className="text-[10px] text-slate-400">Protocols Activated</span>
@@ -255,6 +270,7 @@ export default function WrappedPage() {
         {/* 3x3 Logo Grid */}
         <div className="grid grid-cols-3 gap-4 flex-1 content-start">
             {PROTOCOL_LIST.map((p, index) => {
+                // 使用真實數據判斷是否點亮
                 const isActive = myProtocols.includes(p);
                 const isCenter = index === 4;
 
@@ -307,7 +323,7 @@ export default function WrappedPage() {
       <nav className="relative z-50 w-full max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
         <div className="flex items-center gap-2">
             <img src="/bucket-default-pfp.png" className="w-6 h-6" alt="Logo" />
-            <span className="font-bold text-lg text-slate-900 dark:text-white tracking-tight">Bucket</span>
+            <span className="font-bold text-lg text-slate-900 dark:text-white tracking-tight">Bucket Labs</span>
         </div>
         <Link href="/" className="text-sm font-bold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition px-4 py-2">
             START OVER
@@ -350,10 +366,10 @@ export default function WrappedPage() {
             <div className="absolute top-0 left-[-9999px]">
                 <div 
                     id="share-card-export"
-                    className="relative w-[360px] h-[540px] rounded-[24px] overflow-hidden bg-[#e0e5ec] border-[8px] border-white p-0"
-                    style={{ background: "linear-gradient(135deg, #f3f4f6 0%, #d1d5db 100%)" }}
+                    className="relative w-[360px] h-[540px] rounded-[32px] overflow-hidden bg-[#e0e5ec] border border-white/10 p-0"
                 >
-                    <div className="absolute inset-2 rounded-[16px] bg-[#080c14] overflow-hidden flex flex-col border border-black/10">
+                     <div className="absolute inset-0 opacity-20 bg-[url('/noise.png')]" />
+                    <div className="relative z-10 h-full flex flex-col">
                         <CardFront />
                     </div>
                 </div>

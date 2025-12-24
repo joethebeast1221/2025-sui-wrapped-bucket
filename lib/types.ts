@@ -11,12 +11,15 @@ export interface SuiYearlySummary {
 
   totalTxCount: number;
   activeDays: number;
-  bucketAnnualReward?: number; // ✨ 新增：Bucket 年度總收益
+  bucketAnnualReward?: number; 
 
   firstTxDate?: string;
   lastTxDate?: string;
 
   activityTimeline: ActivityTimelinePoint[];
+
+  // ✨ 新增：已交互的協議列表 (後端 GraphQL 查完後填入這裡)
+  interactedProtocols: string[]; 
 
   personalityTags: string[];
   ogSentence: string;

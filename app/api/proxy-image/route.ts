@@ -32,4 +32,4 @@ export async function GET(request: NextRequest) {
     console.error("Proxy error:", error);
     return new NextResponse("Failed to fetch image", { status: 500 });
   }
-}
+}0

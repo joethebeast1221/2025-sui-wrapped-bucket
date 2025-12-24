@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { signIn, useSession, signOut } from "next-auth/react";
 import { ConnectButton, useCurrentAccount, useSignPersonalMessage } from "@mysten/dapp-kit";
 import { useRouter } from "next/navigation";
-import { LandingCardPreview } from "@/components/LandingCardPreview"; // 引入新組件
+import { LandingCardPreview } from "@/components/LandingCardPreview";
 
 export default function Home() {
   const { data: session } = useSession();
@@ -16,7 +16,7 @@ export default function Home() {
   const [isBinding, setIsBinding] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // 自動判斷步驟
+  // 自動判斷目前步驟
   useEffect(() => {
     if (!session) {
       setStep(1);
@@ -33,11 +33,16 @@ export default function Home() {
     setErrorMsg("");
 
     try {
+      // 1. 準備簽名訊息
       const message = `Bind Twitter @${(session as any).twitterHandle} to Wallet ${currentAccount.address}`;
       const messageBytes = new TextEncoder().encode(message);
 
-      const result = await signPersonalMessage({ message: messageBytes });
+      // 2. 喚起錢包簽名
+      const result = await signPersonalMessage({
+        message: messageBytes,
+      });
 
+      // 3. 發送到後端驗證
       const res = await fetch("/api/campaign/bind", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -49,13 +54,29 @@ export default function Home() {
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Binding failed");
+      // 4. 🔥 錯誤處理修正：先檢查狀態碼，避免直接解析 HTML 報錯
+      if (!res.ok) {
+        // 如果伺服器回傳錯誤 (例如 500)，嘗試讀取文字訊息而不是 JSON
+        const text = await res.text(); 
+        console.error("Bind API Error:", text);
+        try {
+            // 嘗試解析 JSON 錯誤訊息
+            const json = JSON.parse(text);
+            throw new Error(json.error || `Binding failed (${res.status})`);
+        } catch (e) {
+            // 如果不是 JSON，拋出一般錯誤
+            throw new Error(`Server Error (${res.status}): Please check console.`);
+        }
+      }
 
+      // 如果成功，再解析 JSON
+      const data = await res.json();
+      
+      // 5. 跳轉到結果頁
       router.push(`/wrapped/${currentAccount.address}?year=2025`);
 
     } catch (err: any) {
-      console.error(err);
+      console.error("Verification failed:", err);
       setErrorMsg(err.message || "Signing failed. Please try again.");
     } finally {
       setIsBinding(false);
@@ -92,7 +113,7 @@ export default function Home() {
                 </p>
             </div>
 
-            {/* 連接流程表單 (加上了 backdrop-blur 讓它更融入背景) */}
+            {/* 連接流程表單 */}
             <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-2xl backdrop-blur-md relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-500" />
                 
