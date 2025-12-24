@@ -1,20 +1,19 @@
 // lib/suiBucketAnalytics.ts
-import { SuiYearlySummary, ActivityTimelinePoint } from "./types";
+import { SuiYearlySummary } from "./types";
 
 const SUI_GRAPHQL_URL = "https://graphql.mainnet.sui.io/graphql";
 
 function normalizeSuiAddress(address: string): string | null {
   const trimmed = address.trim().toLowerCase();
   const no0x = trimmed.startsWith("0x") ? trimmed.slice(2) : trimmed;
-  return "0x" + no0x.padStart(64, "0");
   if (!/^[0-9a-f]+$/.test(no0x) || no0x.length > 64) return null;
+  return "0x" + no0x.padStart(64, "0");
 }
 
-// --- GraphQL Fetcher ---
+// --- Protocol Fetcher (準確的 Alias Query) ---
 async function fetchProtocolInteractions(address: string): Promise<string[]> {
-  const interacted: string[] = []; // 預設包含 Bucket
+  const interacted: string[] = ["Bucket"]; 
 
-  // 構建 Query：一次請求檢查所有協議
   const query = `
     query CheckProtocols($addr: SuiAddress!) {
       navi: events(filter: {sender: $addr, type: "0x834a86970ae93a73faf4fff16ae40bdb72b91c47be585fff19a2af60a19ddca3::logic::StateUpdated"}, last: 1) { nodes { timestamp } }
@@ -46,18 +45,14 @@ async function fetchProtocolInteractions(address: string): Promise<string[]> {
   `;
 
   try {
-    const res = await fetch(SUI_GRAPHQL_URL, {
+    const res: Response = await fetch(SUI_GRAPHQL_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query,
-        variables: { addr: address },
-      }),
+      body: JSON.stringify({ query, variables: { addr: address } }),
     });
 
-    const json = await res.json();
+    const json: any = await res.json();
 
-    // 如果 GraphQL 報錯 (例如請求太頻繁)，只回傳預設值
     if (json.errors) {
       console.warn("GraphQL Errors:", json.errors);
       return interacted;
@@ -66,34 +61,24 @@ async function fetchProtocolInteractions(address: string): Promise<string[]> {
     const data = json.data;
     if (!data) return interacted;
 
-    // 解析回傳資料
-    // 對於 Event，只要 nodes 陣列長度 > 0 即表示有交互
     if (data.navi?.nodes?.length > 0) interacted.push("NAVI");
     if (data.bluefin?.nodes?.length > 0) interacted.push("Bluefin");
     if (data.suilend?.nodes?.length > 0) interacted.push("Suilend");
     if (data.cetus?.nodes?.length > 0) interacted.push("Cetus");
-    if (data.deepbook?.nodes?.length > 0) interacted.push("Deepbook"); // 注意 UI 對應的名稱大小寫
+    if (data.deepbook?.nodes?.length > 0) interacted.push("Deepbook");
 
-    // Scallop: 只要 Mint 或 Deposit 任一有紀錄就算
-    if (
-      data.scallop_mint?.nodes?.length > 0 ||
-      data.scallop_dep?.nodes?.length > 0
-    ) {
+    if (data.scallop_mint?.nodes?.length > 0 || data.scallop_dep?.nodes?.length > 0) {
       interacted.push("Scallop");
     }
 
-    if (
-      data.bucket_cdp?.nodes?.length > 0 ||
-      data.bucket_savings?.nodes?.length > 0
-    ) {
-      interacted.push("Bucket");
+    if (data.bucket_cdp?.nodes?.length > 0 || data.bucket_savings?.nodes?.length > 0) {
+       if (!interacted.includes("Bucket")) interacted.push("Bucket");
     }
 
     if (data.lake?.nodes?.length > 0) {
       interacted.push("Lake");
     }
 
-    // Walrus: 檢查是否持有該 Object
     if (data.walrus_obj?.objects?.nodes?.length > 0) {
       interacted.push("Walrus");
     }
@@ -101,19 +86,8 @@ async function fetchProtocolInteractions(address: string): Promise<string[]> {
     console.error("Failed to fetch protocol interactions", e);
   }
 
-  return interacted;
-}
-
-// 模擬 (或真實) 抓取 Bucket Reward
-async function fetchBucketRewards(address: string): Promise<number> {
-  try {
-    // 這裡用模擬數據，實際上線可換成真實 API
-    const seed = address.charCodeAt(address.length - 1) + address.charCodeAt(2);
-    return ((seed * 1234) % 5000) + (seed % 100) / 100;
-  } catch (e) {
-    console.error("Failed to fetch bucket rewards", e);
-    return 0;
-  }
+  // 去重
+  return Array.from(new Set(interacted));
 }
 
 export async function buildSuiYearlySummary(
@@ -127,41 +101,31 @@ export async function buildSuiYearlySummary(
     throw new Error("Invalid address format");
   }
 
-  // 1. 並行執行：GraphQL 查詢 & Bucket Rewards
-  const protocolsPromise = fetchProtocolInteractions(normalized);
-  const rewardsPromise = fetchBucketRewards(normalized);
+  // 1. 只執行協議偵測
+  const interactedProtocols = await fetchProtocolInteractions(normalized);
 
-  // 2. RPC 交易計數邏輯 (模擬)
-  // ⚠️ 注意：為了簡化演示，這裡省略了真實的 RPC loop。
-  // 在正式版中，請保留你原本用 client.queryTransactionBlocks 的程式碼
-  const totalTxCount = 120 + Math.floor(Math.random() * 50);
-  const activeDays = 30 + Math.floor(Math.random() * 20);
-  const activityTimeline: ActivityTimelinePoint[] = [];
-  for (let m = 1; m <= 12; m++) {
-    const ym = `${year}-${String(m).padStart(2, "0")}`;
-    activityTimeline.push({
-      month: ym,
-      txCount: Math.floor(Math.random() * 10),
-    });
+  // 2. 稱號判斷 (改為純協議導向)
+  let personalityTags = ["Sui Explorer"];
+  let ogSentence = "You are starting to discover the power of Move.";
+  
+  const count = interactedProtocols.length;
+
+  if (count >= 8) {
+      personalityTags = ["Move Degen"];
+      ogSentence = "You live on-chain. The entire ecosystem is your playground.";
+  } else if (count >= 5) {
+      personalityTags = ["DeFi Voyager"];
+      ogSentence = "You've explored the depths of the Sui ocean.";
+  } else if (count >= 3) {
+      personalityTags = ["Consistent Builder"];
+      ogSentence = "Building your portfolio, one protocol at a time.";
   }
-
-  // 3. 等待所有數據
-  const [interactedProtocols, bucketAnnualReward] = await Promise.all([
-    protocolsPromise,
-    rewardsPromise,
-  ]);
-
-  const personalityTags = ["Sui Explorer"];
-  const ogSentence = "You are just dipping your toes into the Move ecosystem.";
 
   return {
     address,
     year,
-    totalTxCount,
-    activeDays,
-    activityTimeline,
     personalityTags,
     ogSentence,
-    interactedProtocols, // ✨ 這裡將回傳真實查詢到的協議列表
+    interactedProtocols, 
   };
 }
