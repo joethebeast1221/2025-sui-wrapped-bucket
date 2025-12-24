@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifyPersonalMessage } from "@mysten/sui/verify";
+import { verifyPersonalMessageSignature } from "@mysten/sui/verify";
 
 // 模擬資料庫 (正式環境請換成 KV 或 SQL)
 let usersDB: any[] = [];
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     // 1. 驗證簽名 (Verify Signature)
     // 這確保了發送請求的人真的擁有該錢包私鑰
     try {
-      const publicKey = await verifyPersonalMessage(
+      const publicKey = await verifyPersonalMessageSignature(
         new Uint8Array(Buffer.from(messageBytes, "base64")),
         signature,
       );
