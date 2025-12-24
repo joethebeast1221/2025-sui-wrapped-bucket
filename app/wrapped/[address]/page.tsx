@@ -11,7 +11,6 @@ import { ShareImageButton } from "@/components/ShareImageButton";
 import { TweetButton } from "@/components/TweetButton";
 import { SocialFeed } from "@/components/SocialFeed";
 import { QuestActions } from "@/components/QuestActions";
-// ⚠️ 移除 getMockInteractedProtocols，只保留計算邏輯與列表
 import { calculateAdvancedAP, PROTOCOL_LIST } from "@/lib/mockData";
 
 const SEASON_END_DATE = new Date("2026-01-07T23:59:59");
@@ -111,7 +110,6 @@ export default function WrappedPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [activePlayersCount, setActivePlayersCount] = useState(0); 
   
-  // ⚠️ 移除 myProtocols 的 State，直接從 summary 讀取
   const anySession = session as any | null;
   const twitterHandle = anySession?.twitterHandle as string | undefined;
   const twitterPfpUrl = anySession?.twitterPfpUrl?.replace('_normal', '') as string | undefined;
@@ -131,9 +129,6 @@ export default function WrappedPage() {
         
         if (!cancelled) {
             setSummary(data);
-            
-            // ⚠️ 這裡不再需要 setMyProtocols(getMock...)，數據已經在 data.interactedProtocols 裡了
-            
             setActivePlayersCount(1200 + Math.floor(Math.random() * 100));
 
             const duration = 3 * 1000;
@@ -168,17 +163,14 @@ export default function WrappedPage() {
   const avatarUrl = twitterPfpUrl || "/bucket-default-pfp.png"; 
   const displayHandle = twitterHandle ? `@${twitterHandle}` : (suiNsName || shortAddress);
   
-  // ✨ 關鍵修改：從後端數據讀取真實交互過的協議
+  // 從後端數據讀取真實交互過的協議
   const myProtocols = summary.interactedProtocols || []; 
   
+  // 計算分數：使用真實數據
   const result = calculateAdvancedAP(summary.totalTxCount, summary.activeDays, myProtocols.length);
 
-  // --- 卡片正面 (Full Bleed Dark Style + Full Data + CTA) ---
+  // --- 卡片正面 (Full Bleed Dark Style + Stats Only) ---
   const CardFront = () => {
-    const rewardAmount = summary.bucketAnnualReward 
-        ? summary.bucketAnnualReward.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }) 
-        : "$0";
-
     return (
         <div className="flex flex-col h-full font-sans relative">
             {/* 1. Header: Name & SP */}
@@ -207,44 +199,32 @@ export default function WrappedPage() {
                 </div>
             </div>
 
-            {/* 3. Stats Grid (Highlight Earn + Show TX/Days) */}
-            <div className="px-5 pb-16"> {/* 留白給翻轉按鈕 */}
-                <div className="grid grid-cols-2 gap-3">
-                    
-                    {/* Full width: Bucket Rewards */}
-                    <div className="col-span-2 bg-gradient-to-r from-blue-900/40 to-slate-900/40 border border-blue-500/30 rounded-xl p-3 flex items-center justify-between shadow-[0_0_15px_rgba(59,130,246,0.15)] backdrop-blur-md">
-                        <span className="text-[9px] text-blue-300 uppercase tracking-widest font-bold">Bucket Rewards</span>
-                        <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-orange-300 to-yellow-300 drop-shadow-sm font-mono tracking-tight">
-                            {rewardAmount}
-                        </span>
-                    </div>
-
+            {/* 3. Stats Grid (移除 Rewards，放大其他數據) */}
+            <div className="px-6 pb-6">
+                <div className="grid grid-cols-2 gap-4">
                     {/* Half width: TX */}
-                    <div className="bg-white/5 border border-white/5 rounded-lg p-2 flex flex-col items-center justify-center">
-                        <span className="text-lg font-bold text-white font-mono leading-none">{summary.totalTxCount}</span>
-                        <span className="text-[7px] text-slate-500 uppercase tracking-widest mt-1">Total Txs</span>
+                    <div className="bg-white/5 border border-white/5 rounded-xl p-4 flex flex-col items-center justify-center">
+                        <span className="text-2xl font-bold text-white font-mono leading-none">{summary.totalTxCount}</span>
+                        <span className="text-[9px] text-slate-500 uppercase tracking-widest mt-1.5">Total Txs</span>
                     </div>
 
                     {/* Half width: Days */}
-                    <div className="bg-white/5 border border-white/5 rounded-lg p-2 flex flex-col items-center justify-center">
-                        <span className="text-lg font-bold text-white font-mono leading-none">{summary.activeDays}</span>
-                        <span className="text-[7px] text-slate-500 uppercase tracking-widest mt-1">Active Days</span>
+                    <div className="bg-white/5 border border-white/5 rounded-xl p-4 flex flex-col items-center justify-center">
+                        <span className="text-2xl font-bold text-white font-mono leading-none">{summary.activeDays}</span>
+                        <span className="text-[9px] text-slate-500 uppercase tracking-widest mt-1.5">Active Days</span>
+                    </div>
+                </div>
+
+                {/* ✨ 凸顯的翻轉按鈕：置中、發光、CTA */}
+                <div className="mt-6 flex justify-center pointer-events-none">
+                    <div className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 border border-white/20 shadow-lg shadow-blue-500/30 animate-pulse">
+                        <span className="text-xs font-bold text-white uppercase tracking-widest">View Footprint ↻</span>
                     </div>
                 </div>
             </div>
 
-            {/* 4. Footer & Flip Action */}
+            {/* 4. Footer */}
             <div className="absolute bottom-0 left-0 right-0">
-                {/* ⚠️ 修正：將按鈕往上移至 bottom-12，避開 Footer 文字 */}
-                <div className="absolute bottom-12 right-4 z-30 group cursor-pointer pointer-events-none">
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-600/90 border border-blue-400/50 shadow-lg shadow-blue-900/50 animate-bounce backdrop-blur-md">
-                        <span className="text-[9px] font-bold text-white uppercase tracking-wider">View Footprint</span>
-                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                    </div>
-                </div>
-
                 <div className="px-4 py-2 bg-black/60 text-[9px] text-slate-500 text-center uppercase tracking-[0.2em] flex justify-between border-t border-white/5 backdrop-blur-sm">
                     <span>Bucket Protocol</span>
                     <span>2025 Edition</span>
@@ -366,7 +346,7 @@ export default function WrappedPage() {
             <div className="absolute top-0 left-[-9999px]">
                 <div 
                     id="share-card-export"
-                    className="relative w-[360px] h-[540px] rounded-[32px] overflow-hidden bg-[#e0e5ec] border border-white/10 p-0"
+                    className="relative w-[360px] h-[540px] rounded-[32px] overflow-hidden bg-[#080c14] border border-white/10 p-0"
                 >
                      <div className="absolute inset-0 opacity-20 bg-[url('/noise.png')]" />
                     <div className="relative z-10 h-full flex flex-col">

@@ -162,7 +162,6 @@ export async function buildSuiYearlySummary(
     activityTimeline,
     personalityTags,
     ogSentence,
-    bucketAnnualReward,
     interactedProtocols, // ✨ 這裡將回傳真實查詢到的協議列表
   };
 }
