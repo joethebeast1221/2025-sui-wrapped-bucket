@@ -16,14 +16,14 @@ import { CardFront } from "@/components/CardFront";
 
 const PROTOCOL_URLS: Record<string, string> = {
   'NAVI': "https://app.naviprotocol.io/",
-  'Suilend': "https://suilend.fi/",
-  'Bluefin': "https://bluefin.io/",
-  'Lake': "https://lake.finance/",
-  'Bucket': "https://app.bucketprotocol.io/",
-  'Cetus': "https://www.cetus.zone/",
+  'Suilend': "https://suilend.fi/?asset=USDB&lendingMarketId=0xd12df5fede59f1ac5e1f8413bc86bd6bc77fff2001366878df58ef6a26d58c67",
+  'Bluefin': "https://trade.bluefin.io/deposit/0x15dbcac854b1fc68fc9467dbd9ab34270447aabd8cc0e04a5864d95ccb86b74a",
+  'Lake': "https://www.lake.inc/vault",
+  'Bucket': "https://www.bucketprotocol.io/earn/leverage?input=SUI&hodl=SUI",
+  'Cetus': "https://app.cetus.zone/clmm?poolAddress=0xb8d7d9e66a60c239e7a60110efcf8de6c705580ed924d0dde141f4a0e2c90105",
   'Scallop': "https://scallop.io/",
-  'Walrus': "https://www.walrus.xyz/",
-  'Deepbook': "https://sui.io/deepbook",
+  'Walrus': "https://stake-wal.wal.app/",
+  'Deepbook': "https://deeptrade.io/trade/SUI_USDC",
 };
 
 function TiltFlipCard({ 
@@ -185,7 +185,7 @@ export default function WrappedPage() {
     <div className="h-full flex flex-col p-6 font-sans bg-[#080c14]">
         <div className="w-full flex justify-between items-center mb-6 border-b border-white/10 pb-4">
             <div className="flex flex-col gap-1">
-                <span className="text-base font-bold text-white tracking-wider">Inventory</span>
+                <span className="text-base font-bold text-white tracking-wider">Eco Footprint</span>
                 <span className="text-[10px] text-slate-400">Protocols Activated</span>
             </div>
             <span className="text-sm font-mono text-cyan-300 bg-cyan-950/50 px-3 py-1.5 rounded-lg border border-cyan-500/20">
