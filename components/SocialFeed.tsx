@@ -1,107 +1,132 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import Link from "next/link";
-import { calculateAdvancedAP, getMockInteractedProtocols } from "@/lib/mockData";
+import { useEffect, useState } from "react";
+import { calculateAdvancedAP } from "@/lib/mockData";
+import { CardFront } from "@/components/CardFront";
 
-interface CommunityUser {
+interface LeaderboardUser {
   address: string;
-  handle: string | null;
-  pfp: string | null;
-  tx: number;
-  days: number;
+  score: number;
   tier: string;
+  protocolCount: number;
+  handle?: string; // ✨ 新增選填欄位
+  avatar?: string; // ✨ 新增選填欄位
 }
 
 export function SocialFeed() {
-  const [users, setUsers] = useState<CommunityUser[]>([]);
+  const [users, setUsers] = useState<LeaderboardUser[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  const fetchData = async (pageNum: number) => {
+    try {
+      const res = await fetch(`/api/leaderboard?page=${pageNum}&limit=9`);
+      if (res.ok) {
+        const data = await res.json();
+        
+        setTotalCount(data.total || 0);
+        setHasMore(data.hasMore);
+
+        if (pageNum === 1) {
+          setUsers(data.users);
+        } else {
+          setUsers(prev => [...prev, ...data.users]);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch leaderboard", e);
+    } finally {
+      setLoading(false);
+      setIsLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
-    async function fetchFeed() {
-      try {
-        const res = await fetch(`/api/community?t=${Date.now()}`);
-        if (res.ok) {
-          const data = await res.json();
-          setUsers(Array.isArray(data) ? data : []);
-        }
-      } catch (e) {
-        console.error("Feed fetch failed", e);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchFeed();
+    fetchData(1);
   }, []);
 
-  if (loading) return <div className="text-center py-20 text-xs text-slate-500 animate-pulse tracking-widest uppercase">Fetching Signals...</div>;
+  const handleLoadMore = () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    setIsLoadingMore(true);
+    fetchData(nextPage);
+  };
 
-  if (users.length === 0) {
+  if (loading && page === 1) {
     return (
-      <div className="w-full flex flex-col items-center justify-center py-24 border border-white/5 rounded-3xl bg-white/5">
-        <div className="text-4xl opacity-50 mb-4">📡</div>
-        <p className="text-slate-400 font-bold mb-1">No signals detected yet</p>
-      </div>
+        <div className="w-full text-center py-10">
+            <div className="inline-block w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 place-items-center w-full">
-      {users.map((user, idx) => {
-        const displayName = user.handle ? `@${user.handle}` : `${user.address.slice(0, 4)}...${user.address.slice(-4)}`;
-        const avatar = user.pfp || "/bucket-default-pfp.png";
-        
-        const protocols = getMockInteractedProtocols(user.address);
-        // 修正：只傳 3 個參數
-        const result = calculateAdvancedAP(user.tx, user.days, protocols.length);
-        const linkUrl = user.handle ? `https://twitter.com/${user.handle}` : "https://app.bucketprotocol.io/earn";
+    <div className="w-full flex flex-col items-center gap-8">
+      <div className="text-center mb-4">
+         <h3 className="font-bold text-3xl text-slate-900 dark:text-white mb-2">Hall of Fame</h3>
+         <p className="text-slate-500 dark:text-slate-400">
+            Join <span className="text-blue-500 font-bold text-xl">{totalCount}</span> active players on the leaderboard.
+         </p>
+      </div>
 
-        return (
-          <Link key={idx} href={linkUrl} target="_blank" rel="noopener noreferrer" className="group relative block w-full max-w-[280px] hover:-translate-y-2 transition-transform duration-300">
-            <div className={`relative aspect-[3/4.8] rounded-[24px] overflow-hidden bg-[#080c14] border border-white/10 transition-all duration-500 shadow-xl group-hover:shadow-blue-900/20`} style={{ backgroundImage: "linear-gradient(160deg, #1e293b 0%, #020408 60%)" }}>
-              <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-blue-900 to-black opacity-30 blur-xl" />
-              
-              <div className="relative h-full flex flex-col p-5 z-10 justify-between">
-                  <div className="flex justify-between items-center pb-3 border-b border-white/5">
-                      <div className="flex items-center gap-1 opacity-90">
-                          <img src="/bucket-default-pfp.png" className="w-4 h-4" alt="Logo" />
-                          <span className="text-[10px] font-bold tracking-tight text-white font-sans">Bucket</span>
-                      </div>
-                      <div className="px-2 py-0.5 rounded border border-cyan-500/20 bg-cyan-900/10 flex items-center gap-1">
-                          <span className="text-[8px] text-cyan-400 uppercase tracking-wider font-bold">SP</span>
-                          <span className="text-[10px] font-mono font-bold text-cyan-100">{result.score}</span>
-                      </div>
-                  </div>
-
-                  <div className="flex-1 flex flex-col items-center justify-center gap-3">
-                      <div className="relative">
-                          <div className="absolute inset-0 bg-white/5 blur-lg rounded-full" />
-                          <div className={`relative w-20 h-20 rounded-full p-0.5 bg-gradient-to-b from-blue-500 to-indigo-500 border border-white/10 overflow-hidden`}>
-                              <img src={avatar} className="w-full h-full rounded-full object-cover bg-black bucket-filter" alt="Avatar" />
-                          </div>
-                          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                              <span className={`bg-[#050a10] border border-white/10 px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider text-blue-200 shadow`}>
-                                  {result.rankTitle}
-                              </span>
-                          </div>
-                      </div>
-                      <div className="mt-2 text-center w-full px-1">
-                          <div className="text-base font-bold text-white truncate">{displayName}</div>
-                          <p className="text-[9px] leading-relaxed text-slate-400 mt-1 font-light italic opacity-70 line-clamp-2">"{result.rankDesc}"</p>
-                      </div>
-                  </div>
-
-                  <div className="border-t border-white/5 pt-3 mt-1">
-                      <div className="grid grid-cols-2 divide-x divide-white/5">
-                          <div className="flex flex-col items-center"><span className="text-sm font-medium text-white font-mono">{user.tx}</span><span className="text-[7px] text-slate-500 uppercase tracking-wider">TXs</span></div>
-                          <div className="flex flex-col items-center"><span className="text-sm font-medium text-white font-mono">{user.days}</span><span className="text-[7px] text-slate-500 uppercase tracking-wider">Days</span></div>
-                      </div>
-                  </div>
-              </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 w-full max-w-6xl px-4">
+        {users.map((user, i) => {
+          const { rankDesc } = calculateAdvancedAP(user.protocolCount, user.address);
+          // 如果有 handle 就顯示 @handle，否則顯示地址
+          const displayName = user.handle ? `@${user.handle}` : `${user.address.slice(0, 4)}...${user.address.slice(-4)}`;
+          // 決定連結：有 handle 連推特，沒 handle 連區塊鏈瀏覽器
+          const linkUrl = user.handle 
+            ? `https://twitter.com/${user.handle}`
+            : `https://suiscan.xyz/mainnet/account/${user.address}`;
+          
+          return (
+            <div key={`${user.address}-${i}`} className="flex justify-center transform hover:scale-[1.02] transition-transform duration-300">
+               <div className="w-[300px] h-[450px] rounded-[32px] overflow-hidden border border-white/10 shadow-2xl relative">
+                  {/* ✨ 全卡面連結 */}
+                  <a 
+                    href={linkUrl}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="absolute inset-0 z-50 cursor-pointer"
+                    title={user.handle ? `View @${user.handle} on Twitter` : "View on SuiScan"}
+                  />
+                  
+                  {/* ✨ 使用 CardFront，傳入 hideButton={true} */}
+                  <CardFront 
+                    displayHandle={displayName}
+                    score={user.score}
+                    rankTitle={user.tier}
+                    rankDesc={rankDesc}
+                    // 有存頭像就用存的，沒有就用預設
+                    avatarUrl={user.avatar || "/bucket-default-pfp.png"}
+                    protocolCount={user.protocolCount}
+                    hideButton={true} // 隱藏按鈕
+                  />
+               </div>
             </div>
-          </Link>
-        );
-      })}
+          );
+        })}
+      </div>
+      
+      {users.length === 0 && !loading && (
+          <div className="text-slate-500">Be the first to create your card!</div>
+      )}
+
+      {hasMore && (
+        <div className="pt-4 pb-10">
+          <button 
+            onClick={handleLoadMore}
+            disabled={isLoadingMore}
+            className="px-8 py-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 text-white font-bold tracking-widest uppercase text-sm transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {isLoadingMore ? "Loading..." : "Show More Players ↓"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
