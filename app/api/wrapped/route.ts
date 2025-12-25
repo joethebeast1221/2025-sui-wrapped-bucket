@@ -1,106 +1,60 @@
-// app/api/wrapped/route.ts
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth"; 
-import { kv } from "@vercel/kv"; 
+import { NextRequest, NextResponse } from "next/server";
 import { buildSuiYearlySummary } from "@/lib/suiBucketAnalytics";
-import type { SuiYearlySummary } from "@/lib/types";
-import { authOptions } from "@/lib/auth"; // ✅ 關鍵修正：從 lib/auth 導入
+import { calculateAdvancedAP } from "@/lib/mockData";
+import { kv } from "@vercel/kv"; // ✅ 保留 Redis
 
-export const runtime = "nodejs";
+// 確保這是動態路由，避免被靜態快取
+export const dynamic = 'force-dynamic';
 
-function calculateTier(tx: number, days: number) {
-  if (tx >= 1000 || days >= 100) return "tidal";
-  if (tx >= 200 || days >= 30) return "current";
-  if (tx >= 20 || days >= 5) return "stream";
-  return "ripple";
-}
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const address = searchParams.get("address");
+  const year = parseInt(searchParams.get("year") ?? "2025");
 
-function calculatePower(tx: number, days: number): number {
-  const score = (days * 10) + tx;
-  return Math.min(9999, score);
-}
-
-function normalizeAddress(addr: string | null): string {
-  if (!addr) return "";
-  return addr.trim().toLowerCase();
-}
-
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const rawAddress = searchParams.get("address");
-  const yearParam = searchParams.get("year");
-
-  if (!rawAddress) {
-    return NextResponse.json({ error: "Missing address" }, { status: 400 });
+  if (!address) {
+    return NextResponse.json({ error: "Address is required" }, { status: 400 });
   }
 
-  const address = normalizeAddress(rawAddress);
-  const year = Number(yearParam ?? "2025") || 2025;
-
   try {
-    const summary: SuiYearlySummary = await buildSuiYearlySummary(address, year);
-    const session = await getServerSession(authOptions);
-    const user = session as any;
+    // 1. 抓取鏈上數據 (這裡回傳的 summary 已無 tx/days 欄位)
+    const summary = await buildSuiYearlySummary(address, year);
 
-    if (summary.totalTxCount > 0) {
-      const tier = calculateTier(summary.totalTxCount, summary.activeDays);
-      
-      const userData = {
-        address: address, 
-        handle: user?.twitterHandle || null,
-        pfp: user?.twitterPfpUrl || null,
-        tx: summary.totalTxCount,
-        days: summary.activeDays,
-        tier: tier,
-        timestamp: Date.now(),
-      };
+    // 2. 計算分數與排名 (使用新的協議數量邏輯)
+    const protocolCount = summary.interactedProtocols.length;
+    
+    // 呼叫我們在 lib/mockData.ts 定義的新公式
+    const { score, rankTitle } = calculateAdvancedAP(protocolCount, address);
 
-      try {
-        const currentList = await kv.lrange("bucket_community_feed", 0, 199) || [];
-        
-        const uniqueMap = new Map();
-        currentList.forEach((item: any) => {
-            if (item && item.address) {
-                uniqueMap.set(normalizeAddress(item.address), item);
-            }
+    // 3. ✅ 寫入 Vercel KV (Redis)
+    // 這裡是用戶生成卡片時的「存檔」動作，為了讓之後可以導出 CSV
+    try {
+      // 只有當有數據時才存 (或者您可以決定即使是 0 也存)
+      if (protocolCount >= 0) { 
+        const userData = {
+          address: address,
+          score: score,
+          tier: rankTitle,
+          protocolCount: protocolCount, // 改存這個指標
+          timestamp: Date.now(),
+        };
+
+        // 使用 Hash 結構儲存，Key 為 address，避免重複
+        await kv.hset("bucket_user_registry", {
+          [address]: JSON.stringify(userData),
         });
-        uniqueMap.set(address, userData);
-
-        const sortedList = Array.from(uniqueMap.values())
-            .sort((a: any, b: any) => {
-                const apA = calculatePower(a.tx, a.days);
-                const apB = calculatePower(b.tx, b.days);
-                if (apB !== apA) return apB - apA;
-                return b.timestamp - a.timestamp;
-            })
-            .slice(0, 50);
-
-        const pipeline = kv.pipeline();
-        pipeline.del("bucket_community_feed"); 
-        if (sortedList.length > 0) {
-            // @ts-ignore
-            pipeline.rpush("bucket_community_feed", ...sortedList as any[]);
-        }
-
-        pipeline.hset("bucket_user_registry", {
-            [address]: JSON.stringify({
-                ...userData,
-                userAgent: request.headers.get("user-agent") || "unknown"
-            })
-        });
-
-        await pipeline.exec();
-        
-      } catch (dbError) {
-        console.error("DB Save Error:", dbError);
       }
+    } catch (kvError) {
+      console.warn("Failed to save to Vercel KV:", kvError);
+      // 存檔失敗不應阻擋 API 回傳，僅記錄錯誤
     }
 
-    return NextResponse.json(summary, { status: 200 });
-  } catch (err: any) {
-    console.error("Wrapped API error:", err);
+    // 4. 回傳結果給前端
+    return NextResponse.json(summary);
+
+  } catch (error) {
+    console.error("API Error:", error);
     return NextResponse.json(
-      { error: err?.message || "Failed to load Sui data." },
+      { error: "Failed to generate summary" },
       { status: 500 }
     );
   }
