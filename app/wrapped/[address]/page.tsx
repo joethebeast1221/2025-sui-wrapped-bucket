@@ -10,10 +10,11 @@ import type { SuiYearlySummary } from "@/lib/types";
 import { ShareImageButton } from "@/components/ShareImageButton";
 import { TweetButton } from "@/components/TweetButton";
 import { SocialFeed } from "@/components/SocialFeed"; 
-import { QuestActions } from "@/components/QuestActions"; // ✅ 確保有引入
+import { QuestActions } from "@/components/QuestActions";
 import { calculateAdvancedAP, PROTOCOL_LIST } from "@/lib/mockData";
 import { CardFront } from "@/components/CardFront"; 
 
+// 🔗 協議連結設定
 const PROTOCOL_URLS: Record<string, string> = {
   'NAVI': "https://app.naviprotocol.io/",
   'Suilend': "https://suilend.fi/?asset=USDB&lendingMarketId=0xd12df5fede59f1ac5e1f8413bc86bd6bc77fff2001366878df58ef6a26d58c67",
@@ -24,6 +25,20 @@ const PROTOCOL_URLS: Record<string, string> = {
   'Scallop': "https://scallop.io/",
   'Walrus': "https://stake-wal.wal.app/",
   'Deepbook': "https://deeptrade.io/trade/SUI_USDC",
+};
+
+// 🖼️ ✨ 新增：協議 Logo 設定
+// 請確保 public/logos/ 資料夾下有對應的圖片
+const PROTOCOL_LOGOS: Record<string, string> = {
+  'NAVI': "/logos/navi.png",
+  'Suilend': "/logos/suilend.png",
+  'Bluefin': "/logos/bluefin.png",
+  'Lake': "/logos/lake.png",
+  'Bucket': "/logos/bucket.png",
+  'Cetus': "/logos/cetus.png",
+  'Scallop': "/logos/scallop.png",
+  'Walrus': "/logos/walrus.png",
+  'Deepbook': "/logos/deepbook.png",
 };
 
 function TiltFlipCard({ 
@@ -75,6 +90,7 @@ function TiltFlipCard({
                 transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)"
             }}
         >
+            {/* Front */}
             <div 
                 className="absolute inset-0 w-full h-full rounded-[32px] overflow-hidden bg-[#080c14] border border-white/10 shadow-2xl flex flex-col"
                 style={{ 
@@ -89,6 +105,7 @@ function TiltFlipCard({
                 </div>
             </div>
 
+            {/* Back */}
             <div 
                 className="absolute inset-0 w-full h-full rounded-[32px] overflow-hidden bg-[#080c14] border border-white/10 shadow-2xl flex flex-col"
                 style={{ 
@@ -181,6 +198,7 @@ export default function WrappedPage() {
   const myProtocols = summary.interactedProtocols || []; 
   const result = calculateAdvancedAP(myProtocols.length, address);
 
+  // --- 卡片背面 (更新了 Logo 顯示邏輯) ---
   const CardBack = () => (
     <div className="h-full flex flex-col p-6 font-sans bg-[#080c14]">
         <div className="w-full flex justify-between items-center mb-6 border-b border-white/10 pb-4">
@@ -198,6 +216,7 @@ export default function WrappedPage() {
                 const isActive = myProtocols.includes(p);
                 const isCenter = index === 4;
                 const url = PROTOCOL_URLS[p] || "#"; 
+                const logoPath = PROTOCOL_LOGOS[p]; // 取得圖片路徑
 
                 return (
                     <Link
@@ -219,12 +238,24 @@ export default function WrappedPage() {
                                 }
                             `}
                         >
+                            {/* ✨ 修改：如果有的話顯示 Logo，沒有的話才顯示文字 */}
                             <div className={`
-                                w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold mb-1 shadow-inner
-                                ${isCenter ? 'bg-white text-blue-600' : (isActive ? 'bg-gradient-to-br from-cyan-400 to-blue-500 text-white' : 'bg-slate-800 text-slate-500')}
+                                w-9 h-9 rounded-full flex items-center justify-center mb-1 overflow-hidden
+                                ${isCenter ? 'bg-white' : (isActive ? 'bg-gradient-to-br from-cyan-400 to-blue-500' : 'bg-slate-800')}
                             `}>
-                                {p[0]}
+                                {logoPath ? (
+                                    <img 
+                                        src={logoPath} 
+                                        alt={p} 
+                                        className="w-full h-full object-cover" 
+                                    />
+                                ) : (
+                                    <span className={`text-xs font-bold ${isCenter ? 'text-blue-600' : (isActive ? 'text-white' : 'text-slate-500')}`}>
+                                        {p[0]}
+                                    </span>
+                                )}
                             </div>
+                            
                             <span className={`text-[8px] uppercase tracking-wider font-bold ${isCenter ? 'text-white' : 'text-slate-300'}`}>
                                 {p}
                             </span>
@@ -263,7 +294,6 @@ export default function WrappedPage() {
       </nav>
 
       <div className="relative z-10 w-full max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-center min-h-[60vh] gap-12 lg:gap-24 px-6 pb-12 pt-8">
-        {/* Left Content */}
         <div className="flex flex-col items-center lg:items-start text-center lg:text-left gap-8 max-w-lg">
             <div>
                 <h1 className="text-5xl md:text-7xl font-bold text-slate-900 dark:text-white leading-[1.1] mb-4">
@@ -280,18 +310,15 @@ export default function WrappedPage() {
                     <ShareImageButton twitterHandle={twitterHandle} shortAddress={shortAddress} summary={summary} twitterPfpUrl={avatarUrl} />
                 </div>
                 <div className="w-full sm:w-auto min-w-[140px] [&>button]:!bg-blue-600 [&>button]:!text-white [&>button]:!rounded-full [&>button]:!py-3 [&>button]:!border-0 [&>button]:!shadow-xl [&>button]:hover:!scale-105">
-                    {/* ✨ 這裡使用了新的 prop: protocolCount */}
                     <TweetButton twitterHandle={twitterHandle} tier={result.rankTitle} protocolCount={myProtocols.length} />
                 </div>
             </div>
 
-            {/* ✅ 確認 QuestActions (Giveaway Quest) 已經加回這裡 */}
             <div className="w-full mt-4">
                 <QuestActions />
             </div>
         </div>
 
-        {/* Right Content - The Card */}
         <div className="flex justify-center animate-float">
             <div className="absolute top-0 left-[-9999px]">
                 <div 
