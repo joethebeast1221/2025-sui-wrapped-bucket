@@ -9,12 +9,10 @@ import confetti from "canvas-confetti";
 import type { SuiYearlySummary } from "@/lib/types";
 import { ShareImageButton } from "@/components/ShareImageButton";
 import { TweetButton } from "@/components/TweetButton";
-import { SocialFeed } from "@/components/SocialFeed"; // 名人堂組件
-import { QuestActions } from "@/components/QuestActions";
+import { SocialFeed } from "@/components/SocialFeed"; 
+import { QuestActions } from "@/components/QuestActions"; // ✅ 確保有引入
 import { calculateAdvancedAP, PROTOCOL_LIST } from "@/lib/mockData";
 import { CardFront } from "@/components/CardFront"; 
-
-const SEASON_END_DATE = new Date("2026-01-07T23:59:59");
 
 const PROTOCOL_URLS: Record<string, string> = {
   'NAVI': "https://app.naviprotocol.io/",
@@ -127,7 +125,6 @@ export default function WrappedPage() {
   
   const anySession = session as any | null;
   const twitterHandle = anySession?.twitterHandle as string | undefined;
-  // 處理 Twitter 頭像 (移除 _normal 取得高解析度)
   const twitterPfpUrl = anySession?.twitterPfpUrl?.replace('_normal', '') as string | undefined;
   const avatarUrl = twitterPfpUrl || "/bucket-default-pfp.png"; 
 
@@ -137,12 +134,10 @@ export default function WrappedPage() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      // 確保 session 載入完畢後再發請求，以免漏掉 twitterHandle
       if (session === undefined) return; 
 
       setLoading(true);
       try {
-        // ✨ 修改點：將 handle 和 avatar 傳給後端儲存
         let apiUrl = `/api/wrapped?address=${encodeURIComponent(address)}&year=${year}`;
         if (twitterHandle) apiUrl += `&handle=${encodeURIComponent(twitterHandle)}`;
         if (twitterPfpUrl) apiUrl += `&avatar=${encodeURIComponent(twitterPfpUrl)}`;
@@ -170,7 +165,7 @@ export default function WrappedPage() {
     }
     if (address) load();
     return () => { cancelled = true; };
-  }, [address, year, session, twitterHandle, twitterPfpUrl]);
+  }, [address, year, twitterHandle, twitterPfpUrl, session === undefined]);
 
   if (loading) {
     return (
@@ -268,6 +263,7 @@ export default function WrappedPage() {
       </nav>
 
       <div className="relative z-10 w-full max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-center min-h-[60vh] gap-12 lg:gap-24 px-6 pb-12 pt-8">
+        {/* Left Content */}
         <div className="flex flex-col items-center lg:items-start text-center lg:text-left gap-8 max-w-lg">
             <div>
                 <h1 className="text-5xl md:text-7xl font-bold text-slate-900 dark:text-white leading-[1.1] mb-4">
@@ -284,15 +280,18 @@ export default function WrappedPage() {
                     <ShareImageButton twitterHandle={twitterHandle} shortAddress={shortAddress} summary={summary} twitterPfpUrl={avatarUrl} />
                 </div>
                 <div className="w-full sm:w-auto min-w-[140px] [&>button]:!bg-blue-600 [&>button]:!text-white [&>button]:!rounded-full [&>button]:!py-3 [&>button]:!border-0 [&>button]:!shadow-xl [&>button]:hover:!scale-105">
-                    <TweetButton twitterHandle={twitterHandle} tier={result.rankTitle} txCount={myProtocols.length * 10} />
+                    {/* ✨ 這裡使用了新的 prop: protocolCount */}
+                    <TweetButton twitterHandle={twitterHandle} tier={result.rankTitle} protocolCount={myProtocols.length} />
                 </div>
             </div>
 
+            {/* ✅ 確認 QuestActions (Giveaway Quest) 已經加回這裡 */}
             <div className="w-full mt-4">
                 <QuestActions />
             </div>
         </div>
 
+        {/* Right Content - The Card */}
         <div className="flex justify-center animate-float">
             <div className="absolute top-0 left-[-9999px]">
                 <div 
