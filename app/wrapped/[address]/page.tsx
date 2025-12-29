@@ -16,14 +16,14 @@ import { CardFront } from "@/components/CardFront";
 // 🔗 協議連結
 const PROTOCOL_URLS: Record<string, string> = {
   'NAVI': "https://app.naviprotocol.io/",
-  'Suilend': "https://suilend.fi/",
-  'Bluefin': "https://bluefin.io/",
-  'Lake': "https://lake.finance/",
-  'Bucket': "https://app.bucketprotocol.io/",
-  'Cetus': "https://www.cetus.zone/",
-  'Scallop': "https://scallop.io/",
-  'Walrus': "https://www.walrus.xyz/",
-  'Deepbook': "https://sui.io/deepbook",
+  'Suilend': "https://suilend.fi/?asset=USDB&lendingMarketId=0xd12df5fede59f1ac5e1f8413bc86bd6bc77fff2001366878df58ef6a26d58c67",
+  'Bluefin': "https://trade.bluefin.io/deposit/0x15dbcac854b1fc68fc9467dbd9ab34270447aabd8cc0e04a5864d95ccb86b74a",
+  'Lake': "https://www.lake.inc/vault",
+  'Bucket': "https://www.bucketprotocol.io/borrow?token=SUI",
+  'Cetus': "https://app.cetus.zone/clmm?poolAddress=0x51e883ba7c0b566a26cbc8a94cd33eb0abd418a77cc1e60ad22fd9b1f29cd2ab",
+  'Scallop': "https://app.scallop.io/",
+  'Walrus': "https://stake-wal.wal.app/",
+  'Deepbook': "https://deeptrade.io/trade/SUI_USDC",
 };
 
 // 🖼️ 協議 Logo
