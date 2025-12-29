@@ -10,12 +10,10 @@ import type { SuiYearlySummary } from "@/lib/types";
 import { ShareImageButton } from "@/components/ShareImageButton";
 import { TweetButton } from "@/components/TweetButton";
 import { SocialFeed } from "@/components/SocialFeed"; 
-// ❌ 移除 QuestActions 引用
-// import { QuestActions } from "@/components/QuestActions"; 
 import { calculateAdvancedAP, PROTOCOL_LIST } from "@/lib/mockData";
 import { CardFront } from "@/components/CardFront"; 
 
-// 🔗 協議連結設定
+// 🔗 協議連結
 const PROTOCOL_URLS: Record<string, string> = {
   'NAVI': "https://app.naviprotocol.io/",
   'Suilend': "https://suilend.fi/",
@@ -28,7 +26,7 @@ const PROTOCOL_URLS: Record<string, string> = {
   'Deepbook': "https://sui.io/deepbook",
 };
 
-// 🖼️ 協議 Logo 設定
+// 🖼️ 協議 Logo
 const PROTOCOL_LOGOS: Record<string, string> = {
   'NAVI': "/logos/navi.png",
   'Suilend': "/logos/suilend.png",
@@ -53,8 +51,12 @@ function TiltFlipCard({
   const cardRef = useRef<HTMLDivElement>(null);
   const [rotate, setRotate] = useState({ x: 0, y: 0 });
 
+  // ✨ 優化：手機版不觸發 Tilt (傾斜) 效果，避免滑動頁面時卡片亂動
   const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
     if (!cardRef.current) return;
+    // 簡單判斷：如果是觸控裝置或螢幕很小，就不做 3D 傾斜運算
+    if (typeof window !== 'undefined' && window.innerWidth < 768) return;
+
     const rect = cardRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -78,7 +80,8 @@ function TiltFlipCard({
       
       <div 
         ref={cardRef}
-        className="card-inner relative w-[360px] h-[540px] rounded-[32px] transition-transform duration-100 ease-out"
+        // ✨ RWD 關鍵：寬度改為 w-[90vw] max-w-[360px]，讓手機版自動縮小
+        className="card-inner relative w-[90vw] max-w-[360px] aspect-[2/3] rounded-[32px] transition-transform duration-100 ease-out mx-auto"
         style={{
           transform: `rotateX(${rotate.x}deg) rotateY(${rotate.y}deg)`,
         }}
@@ -137,8 +140,8 @@ export default function WrappedPage() {
   const [summary, setSummary] = useState<SuiYearlySummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  
   const [isFlipped, setIsFlipped] = useState(false);
+  const [imgError, setImgError] = useState<Record<string, boolean>>({});
   
   const anySession = session as any | null;
   const twitterHandle = anySession?.twitterHandle as string | undefined;
@@ -148,9 +151,6 @@ export default function WrappedPage() {
   const shortAddress = address && address.length > 14 ? `${address.slice(0, 6)}...${address.slice(-4)}` : address;
   const displayHandle = twitterHandle ? `@${twitterHandle}` : (suiNsName || shortAddress);
   
-  // 錯誤處理狀態：如果 Logo 載入失敗，記錄下來
-  const [imgError, setImgError] = useState<Record<string, boolean>>({});
-
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -168,13 +168,15 @@ export default function WrappedPage() {
         
         if (!cancelled) {
             setSummary(data);
-
-            const duration = 3 * 1000;
-            const end = Date.now() + duration;
-            const interval: any = setInterval(() => {
-                if (Date.now() > end) return clearInterval(interval);
-                confetti({ startVelocity: 30, spread: 360, ticks: 60, zIndex: 0, particleCount: 50, origin: { x: Math.random(), y: Math.random() - 0.2 } });
-            }, 250);
+            // 延遲一點撒花，確保畫面已渲染
+            setTimeout(() => {
+                const duration = 3 * 1000;
+                const end = Date.now() + duration;
+                const interval: any = setInterval(() => {
+                    if (Date.now() > end) return clearInterval(interval);
+                    confetti({ startVelocity: 30, spread: 360, ticks: 60, zIndex: 0, particleCount: 50, origin: { x: Math.random(), y: Math.random() - 0.2 } });
+                }, 250);
+            }, 500);
         }
       } catch (err: any) {
         console.error(err);
@@ -201,12 +203,11 @@ export default function WrappedPage() {
   const myProtocols = summary.interactedProtocols || []; 
   const result = calculateAdvancedAP(myProtocols.length, address);
 
-  // --- 卡片背面 ---
   const CardBack = () => (
     <div className="h-full flex flex-col p-6 font-sans bg-[#080c14]">
         <div className="w-full flex justify-between items-center mb-6 border-b border-white/10 pb-4">
             <div className="flex flex-col gap-1">
-                <span className="text-base font-bold text-white tracking-wider">Inventory</span>
+                <span className="text-base font-bold text-white tracking-wider">Footprint</span>
                 <span className="text-[10px] text-slate-400">Protocols Activated</span>
             </div>
             <span className="text-sm font-mono text-cyan-300 bg-cyan-950/50 px-3 py-1.5 rounded-lg border border-cyan-500/20">
@@ -214,7 +215,7 @@ export default function WrappedPage() {
             </span>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 flex-1 content-start">
+        <div className="grid grid-cols-3 gap-3 flex-1 content-start">
             {PROTOCOL_LIST.map((p, index) => {
                 const isActive = myProtocols.includes(p);
                 const isCenter = index === 4;
@@ -242,27 +243,24 @@ export default function WrappedPage() {
                             `}
                         >
                             <div className={`
-                                w-9 h-9 rounded-full flex items-center justify-center mb-1 overflow-hidden
+                                w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center mb-1 overflow-hidden
                                 ${isCenter ? 'bg-white' : (isActive ? 'bg-gradient-to-br from-cyan-400 to-blue-500' : 'bg-slate-800')}
                             `}>
-                                {/* 有圖片路徑 且 沒發生過錯誤 -> 顯示圖片 */}
                                 {logoPath && !imgError[p] ? (
                                     <img 
                                         src={logoPath} 
                                         alt={p} 
                                         className="w-full h-full object-cover" 
-                                        // 載入失敗時，設定該協議的錯誤狀態為 true
                                         onError={() => setImgError(prev => ({ ...prev, [p]: true }))}
                                     />
                                 ) : (
-                                    /* 否則 -> 顯示文字備案 */
-                                    <span className={`text-xs font-bold ${isCenter ? 'text-blue-600' : (isActive ? 'text-white' : 'text-slate-500')}`}>
+                                    <span className={`text-[10px] sm:text-xs font-bold ${isCenter ? 'text-blue-600' : (isActive ? 'text-white' : 'text-slate-500')}`}>
                                         {p[0]}
                                     </span>
                                 )}
                             </div>
                             
-                            <span className={`text-[8px] uppercase tracking-wider font-bold ${isCenter ? 'text-white' : 'text-slate-300'}`}>
+                            <span className={`text-[7px] sm:text-[8px] uppercase tracking-wider font-bold ${isCenter ? 'text-white' : 'text-slate-300'}`}>
                                 {p}
                             </span>
                         </div>
@@ -271,7 +269,7 @@ export default function WrappedPage() {
             })}
         </div>
 
-        <div className="mt-auto pt-6 border-t border-white/10 flex justify-center">
+        <div className="mt-auto pt-4 sm:pt-6 border-t border-white/10 flex justify-center">
             <div 
                 className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-white/10 border border-white/20 hover:bg-white/20 transition cursor-pointer"
                 onClick={(e) => { e.stopPropagation(); setIsFlipped(false); }}
@@ -292,41 +290,44 @@ export default function WrappedPage() {
       <nav className="relative z-50 w-full max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
         <div className="flex items-center gap-2">
             <img src="/bucket-default-pfp.png" className="w-6 h-6" alt="Logo" />
-            <span className="font-bold text-lg text-slate-900 dark:text-white tracking-tight">Bucket Labs</span>
+            <span className="font-bold text-lg text-slate-900 dark:text-white tracking-tight">Bucket</span>
         </div>
         <Link href="/" className="text-sm font-bold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition px-4 py-2">
             START OVER
         </Link>
       </nav>
 
-      <div className="relative z-10 w-full max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-center min-h-[60vh] gap-12 lg:gap-24 px-6 pb-12 pt-8">
+      <div className="relative z-10 w-full max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-center min-h-[60vh] gap-8 lg:gap-24 px-6 pb-12 pt-4 lg:pt-8">
         
-        {/* Left Content */}
-        <div className="flex flex-col items-center lg:items-start text-center lg:text-left gap-8 max-w-lg">
+        {/* Left Content (Text & Buttons) */}
+        <div className="flex flex-col items-center lg:items-start text-center lg:text-left gap-6 lg:gap-8 max-w-lg order-2 lg:order-1">
             <div>
-                <h1 className="text-5xl md:text-7xl font-bold text-slate-900 dark:text-white leading-[1.1] mb-4">
+                {/* ✨ 優化字體大小：手機 text-4xl，電腦 text-7xl */}
+                <h1 className="text-4xl md:text-7xl font-bold text-slate-900 dark:text-white leading-[1.1] mb-4">
                     Your Bucket <br/>
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">Top Signal</span> Card
                 </h1>
-                <p className="text-lg text-slate-500 dark:text-slate-400 font-normal">
+                <p className="text-base md:text-lg text-slate-500 dark:text-slate-400 font-normal">
                     Generated from your on-chain activity in 2025.
                 </p>
             </div>
 
-            <div className="flex flex-wrap justify-center lg:justify-start gap-4 w-full">
-                <div className="w-full sm:w-auto min-w-[140px] [&>button]:!bg-blue-50 [&>button]:!text-blue-600 [&>button]:dark:!bg-blue-500/20 [&>button]:dark:!text-blue-200 [&>button]:!rounded-full [&>button]:!py-3 [&>button]:!border-0 [&>button]:!shadow-none [&>button]:hover:!scale-105">
+            {/* ✨ 優化按鈕佈局：手機版垂直堆疊 (w-full)，電腦版水平排列 */}
+            <div className="flex flex-col sm:flex-row justify-center lg:justify-start gap-4 w-full">
+                <div className="w-full sm:w-auto min-w-[140px] [&>button]:!w-full [&>button]:!bg-blue-50 [&>button]:!text-blue-600 [&>button]:dark:!bg-blue-500/20 [&>button]:dark:!text-blue-200 [&>button]:!rounded-full [&>button]:!py-3 [&>button]:!border-0 [&>button]:!shadow-none [&>button]:hover:!scale-105">
                     <ShareImageButton twitterHandle={twitterHandle} shortAddress={shortAddress} summary={summary} twitterPfpUrl={avatarUrl} />
                 </div>
-                <div className="w-full sm:w-auto min-w-[140px] [&>button]:!bg-blue-600 [&>button]:!text-white [&>button]:!rounded-full [&>button]:!py-3 [&>button]:!border-0 [&>button]:!shadow-xl [&>button]:hover:!scale-105">
+                <div className="w-full sm:w-auto min-w-[140px] [&>a]:!w-full [&>a]:!bg-black [&>a]:!text-white [&>a]:!rounded-full [&>a]:!py-3 [&>a]:!border-0 [&>a]:!shadow-xl [&>a]:hover:!scale-105">
                     <TweetButton twitterHandle={twitterHandle} tier={result.rankTitle} protocolCount={myProtocols.length} />
                 </div>
             </div>
-
-            {/* ❌ 這裡移除了 QuestActions */}
         </div>
 
         {/* Right Content - The Card */}
-        <div className="flex justify-center animate-float">
+        {/* ✨ 優化：Order-1 讓卡片在手機版顯示在最上面，電腦版顯示在右邊 */}
+        <div className="flex justify-center animate-float order-1 lg:order-2 w-full lg:w-auto">
+            
+            {/* 隱藏的 Export 專用卡片 (保持 360px 寬度以確保圖片生成品質) */}
             <div className="absolute top-0 left-[-9999px]">
                 <div 
                     id="share-card-export"
@@ -347,6 +348,7 @@ export default function WrappedPage() {
                 </div>
             </div>
 
+            {/* 顯示的互動卡片 */}
             <TiltFlipCard 
                 front={
                     <CardFront 
