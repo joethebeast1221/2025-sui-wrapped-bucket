@@ -1,14 +1,49 @@
-// lib/suiBucketAnalytics.ts
 import { SuiYearlySummary } from "./types";
-import { LRUCache } from "lru-cache";
+// ❌ 移除 lru-cache 引用，徹底解決型別問題
+// import { LRUCache } from "lru-cache";
 
-// 1. Cache 設定：避免重複查詢消耗資源
-const analyticsCache = new LRUCache<string, string[]>({
+// ✅ 新增：一個簡單的原生快取類別 (取代 lru-cache)
+class SimpleCache<K, V> {
+  private cache = new Map<K, { value: V; expiry: number }>();
+  private max: number;
+  private ttl: number;
+
+  constructor(options: { max: number; ttl: number }) {
+    this.max = options.max;
+    this.ttl = options.ttl;
+  }
+
+  get(key: K): V | undefined {
+    const item = this.cache.get(key);
+    if (!item) return undefined;
+    if (Date.now() > item.expiry) {
+      this.cache.delete(key);
+      return undefined;
+    }
+    return item.value;
+  }
+
+  set(key: K, value: V): void {
+    // 如果超過容量，刪除最早加入的 (簡單的 FIFO 機制)
+    if (this.cache.size >= this.max) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey) this.cache.delete(firstKey); 
+    }
+    this.cache.set(key, { value, expiry: Date.now() + this.ttl });
+  }
+
+  has(key: K): boolean {
+    return this.get(key) !== undefined;
+  }
+}
+
+// 1. Cache 設定：使用我們自製的 SimpleCache
+const analyticsCache = new SimpleCache<string, string[]>({
   max: 500,             // 最多存 500 人
   ttl: 1000 * 60 * 30,  // 快取 30 分鐘
 });
 
-// 2. URL 設定：改回您原本使用的 URL，確保數據源一致
+// 2. URL 設定
 const SUI_GRAPHQL_URL = "https://graphql.mainnet.sui.io/graphql";
 
 function normalizeSuiAddress(address: string): string | null {
@@ -58,20 +93,18 @@ async function fetchProtocolInteractions(address: string): Promise<string[]> {
   `;
 
   try {
-    // B. 發送請求 (保留 AbortSignal 防止無限卡死，但設長一點)
     const res = await fetch(SUI_GRAPHQL_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query, variables: { addr: address } }),
-      signal: AbortSignal.timeout(15000) // 15秒超時，比之前寬鬆
+      signal: AbortSignal.timeout(15000) 
     });
 
-    // C. 防崩潰處理：先讀成文字
     const responseBody = await res.text();
 
     if (!res.ok) {
       console.warn(`[GraphQL Error] Status: ${res.status}`);
-      return interacted; // 失敗時回傳預設值
+      return interacted; 
     }
 
     let json: any;
@@ -82,18 +115,14 @@ async function fetchProtocolInteractions(address: string): Promise<string[]> {
       return interacted;
     }
 
-    // ✨✨ 關鍵修正：允許部分資料 (Partial Data) ✨✨
-    // 即使 json.errors 存在，只要 data 有東西，我們就繼續處理
-    // 舊版代碼在這裡會直接 return，導致資料遺失
     if (json.errors) {
-      // 這裡只印警告，不中斷流程
       console.warn("GraphQL Partial Errors (ignoring to keep valid data):", json.errors.map((e:any) => e.message));
     }
 
     const data = json.data;
     if (!data) return interacted;
 
-    // D. 解析邏輯 (保持完全不變)
+    // D. 解析邏輯
     if (data.navi?.nodes?.length > 0) interacted.push("NAVI");
     if (data.bluefin?.nodes?.length > 0) interacted.push("Bluefin");
     if (data.suilend?.nodes?.length > 0) interacted.push("Suilend");
