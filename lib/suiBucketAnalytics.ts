@@ -1,6 +1,14 @@
 // lib/suiBucketAnalytics.ts
 import { SuiYearlySummary } from "./types";
+import { LRUCache } from "lru-cache";
 
+// 1. Cache 設定：避免重複查詢消耗資源
+const analyticsCache = new LRUCache<string, string[]>({
+  max: 500,             // 最多存 500 人
+  ttl: 1000 * 60 * 30,  // 快取 30 分鐘
+});
+
+// 2. URL 設定：改回您原本使用的 URL，確保數據源一致
 const SUI_GRAPHQL_URL = "https://graphql.mainnet.sui.io/graphql";
 
 function normalizeSuiAddress(address: string): string | null {
@@ -10,8 +18,13 @@ function normalizeSuiAddress(address: string): string | null {
   return "0x" + no0x.padStart(64, "0");
 }
 
-// --- Protocol Fetcher (準確的 Alias Query) ---
+// --- Protocol Fetcher ---
 async function fetchProtocolInteractions(address: string): Promise<string[]> {
+  // A. 檢查 Cache
+  if (analyticsCache.has(address)) {
+    return analyticsCache.get(address) || ["Bucket"];
+  }
+
   const interacted: string[] = ["Bucket"]; 
 
   const query = `
@@ -45,22 +58,42 @@ async function fetchProtocolInteractions(address: string): Promise<string[]> {
   `;
 
   try {
-    const res: Response = await fetch(SUI_GRAPHQL_URL, {
+    // B. 發送請求 (保留 AbortSignal 防止無限卡死，但設長一點)
+    const res = await fetch(SUI_GRAPHQL_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query, variables: { addr: address } }),
+      signal: AbortSignal.timeout(15000) // 15秒超時，比之前寬鬆
     });
 
-    const json: any = await res.json();
+    // C. 防崩潰處理：先讀成文字
+    const responseBody = await res.text();
 
-    if (json.errors) {
-      console.warn("GraphQL Errors:", json.errors);
+    if (!res.ok) {
+      console.warn(`[GraphQL Error] Status: ${res.status}`);
+      return interacted; // 失敗時回傳預設值
+    }
+
+    let json: any;
+    try {
+      json = JSON.parse(responseBody);
+    } catch (e) {
+      console.error("Invalid JSON:", responseBody.slice(0, 100));
       return interacted;
+    }
+
+    // ✨✨ 關鍵修正：允許部分資料 (Partial Data) ✨✨
+    // 即使 json.errors 存在，只要 data 有東西，我們就繼續處理
+    // 舊版代碼在這裡會直接 return，導致資料遺失
+    if (json.errors) {
+      // 這裡只印警告，不中斷流程
+      console.warn("GraphQL Partial Errors (ignoring to keep valid data):", json.errors.map((e:any) => e.message));
     }
 
     const data = json.data;
     if (!data) return interacted;
 
+    // D. 解析邏輯 (保持完全不變)
     if (data.navi?.nodes?.length > 0) interacted.push("NAVI");
     if (data.bluefin?.nodes?.length > 0) interacted.push("Bluefin");
     if (data.suilend?.nodes?.length > 0) interacted.push("Suilend");
@@ -82,29 +115,31 @@ async function fetchProtocolInteractions(address: string): Promise<string[]> {
     if (data.walrus_obj?.objects?.nodes?.length > 0) {
       interacted.push("Walrus");
     }
-  } catch (e) {
-    console.error("Failed to fetch protocol interactions", e);
-  }
 
-  // 去重
-  return Array.from(new Set(interacted));
+    const result = Array.from(new Set(interacted));
+
+    // E. 寫入 Cache
+    analyticsCache.set(address, result);
+
+    return result;
+
+  } catch (e) {
+    console.error("Fetch protocol failed", e);
+    return interacted;
+  }
 }
 
 export async function buildSuiYearlySummary(
   address: string,
   year: number,
 ): Promise<SuiYearlySummary> {
-  console.log(`[Analytics] Starting fetch for ${address} in ${year}`);
-
   const normalized = normalizeSuiAddress(address);
   if (!normalized) {
     throw new Error("Invalid address format");
   }
 
-  // 1. 只執行協議偵測
   const interactedProtocols = await fetchProtocolInteractions(normalized);
 
-  // 2. 稱號判斷 (改為純協議導向)
   let personalityTags = ["Sui Explorer"];
   let ogSentence = "You are starting to discover the power of Move.";
   
