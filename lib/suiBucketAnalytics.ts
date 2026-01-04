@@ -1,49 +1,6 @@
 import { SuiYearlySummary } from "./types";
-// ❌ 移除 lru-cache 引用，徹底解決型別問題
-// import { LRUCache } from "lru-cache";
 
-// ✅ 新增：一個簡單的原生快取類別 (取代 lru-cache)
-class SimpleCache<K, V> {
-  private cache = new Map<K, { value: V; expiry: number }>();
-  private max: number;
-  private ttl: number;
-
-  constructor(options: { max: number; ttl: number }) {
-    this.max = options.max;
-    this.ttl = options.ttl;
-  }
-
-  get(key: K): V | undefined {
-    const item = this.cache.get(key);
-    if (!item) return undefined;
-    if (Date.now() > item.expiry) {
-      this.cache.delete(key);
-      return undefined;
-    }
-    return item.value;
-  }
-
-  set(key: K, value: V): void {
-    // 如果超過容量，刪除最早加入的 (簡單的 FIFO 機制)
-    if (this.cache.size >= this.max) {
-      const firstKey = this.cache.keys().next().value;
-      if (firstKey) this.cache.delete(firstKey); 
-    }
-    this.cache.set(key, { value, expiry: Date.now() + this.ttl });
-  }
-
-  has(key: K): boolean {
-    return this.get(key) !== undefined;
-  }
-}
-
-// 1. Cache 設定：使用我們自製的 SimpleCache
-const analyticsCache = new SimpleCache<string, string[]>({
-  max: 500,             // 最多存 500 人
-  ttl: 1000 * 60 * 30,  // 快取 30 分鐘
-});
-
-// 2. URL 設定
+// 1. URL 設定
 const SUI_GRAPHQL_URL = "https://graphql.mainnet.sui.io/graphql";
 
 function normalizeSuiAddress(address: string): string | null {
@@ -53,15 +10,12 @@ function normalizeSuiAddress(address: string): string | null {
   return "0x" + no0x.padStart(64, "0");
 }
 
-// --- Protocol Fetcher ---
+// --- Protocol Fetcher (無快取版本) ---
 async function fetchProtocolInteractions(address: string): Promise<string[]> {
-  // A. 檢查 Cache
-  if (analyticsCache.has(address)) {
-    return analyticsCache.get(address) || ["Bucket"];
-  }
-
+  // 預設一定有 Bucket (因為是 Bucket 的活動)
   const interacted: string[] = ["Bucket"]; 
 
+  // 定義 GraphQL 查詢：直接檢查各協議的特定事件
   const query = `
     query CheckProtocols($addr: SuiAddress!) {
       navi: events(filter: {sender: $addr, type: "0x834a86970ae93a73faf4fff16ae40bdb72b91c47be585fff19a2af60a19ddca3::logic::StateUpdated"}, last: 1) { nodes { timestamp } }
@@ -97,6 +51,7 @@ async function fetchProtocolInteractions(address: string): Promise<string[]> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query, variables: { addr: address } }),
+      // 設定 15 秒超時，避免卡太久
       signal: AbortSignal.timeout(15000) 
     });
 
@@ -116,23 +71,26 @@ async function fetchProtocolInteractions(address: string): Promise<string[]> {
     }
 
     if (json.errors) {
-      console.warn("GraphQL Partial Errors (ignoring to keep valid data):", json.errors.map((e:any) => e.message));
+      // 顯示錯誤但不中斷，因為可能只有部分查詢失敗
+      console.warn("GraphQL Partial Errors:", json.errors.map((e:any) => e.message));
     }
 
     const data = json.data;
     if (!data) return interacted;
 
-    // D. 解析邏輯
+    // 解析邏輯：只要該節點有任何一筆事件 (nodes.length > 0)，就代表有互動過
     if (data.navi?.nodes?.length > 0) interacted.push("NAVI");
     if (data.bluefin?.nodes?.length > 0) interacted.push("Bluefin");
     if (data.suilend?.nodes?.length > 0) interacted.push("Suilend");
     if (data.cetus?.nodes?.length > 0) interacted.push("Cetus");
     if (data.deepbook?.nodes?.length > 0) interacted.push("Deepbook");
 
+    // Scallop 有 Mint 或 Deposit 都算
     if (data.scallop_mint?.nodes?.length > 0 || data.scallop_dep?.nodes?.length > 0) {
       interacted.push("Scallop");
     }
 
+    // Bucket 重複檢查 (雖然預設有，但如果有真實互動紀錄更好)
     if (data.bucket_cdp?.nodes?.length > 0 || data.bucket_savings?.nodes?.length > 0) {
        if (!interacted.includes("Bucket")) interacted.push("Bucket");
     }
@@ -145,15 +103,12 @@ async function fetchProtocolInteractions(address: string): Promise<string[]> {
       interacted.push("Walrus");
     }
 
-    const result = Array.from(new Set(interacted));
-
-    // E. 寫入 Cache
-    analyticsCache.set(address, result);
-
-    return result;
+    // 去除重複並返回
+    return Array.from(new Set(interacted));
 
   } catch (e) {
     console.error("Fetch protocol failed", e);
+    // 發生錯誤時至少回傳預設值，確保頁面不壞掉
     return interacted;
   }
 }
@@ -167,8 +122,10 @@ export async function buildSuiYearlySummary(
     throw new Error("Invalid address format");
   }
 
+  // 直接呼叫 API，不經過 Cache
   const interactedProtocols = await fetchProtocolInteractions(normalized);
 
+  // 根據互動協議數量給予評語
   let personalityTags = ["Sui Explorer"];
   let ogSentence = "You are starting to discover the power of Move.";
   
